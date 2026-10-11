@@ -64,4 +64,4 @@ def test_invalid_input_and_backend() -> None:
     with pytest.raises(ValueError, match="frequency bounds"):
         PyinTracker(PyinParams(fmax=12000)).track([0.0], 22050)
     with pytest.raises(ValueError, match="not implemented"):
-        get_tracker("crepe")
+        get_tracker("unknown")

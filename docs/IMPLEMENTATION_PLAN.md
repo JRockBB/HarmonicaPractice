@@ -202,3 +202,42 @@ WP8's CPU and caching requirements are met; average pitch accuracy improves only
 slightly. The remaining full-mix quality limitations are explicit above. This pass
 requires no shared-contract changes and coordinates only WP8, its WP10 wiring,
 and WP4/WP11 verification and documentation.
+
+## CREPE and excerpt workflow
+
+The next WP3 pass adds `CrepeParams` and `CrepeTracker` in `transcribe/crepe.py`,
+behind the existing `PitchTracker`/`PitchTrack` interface. `get_tracker`, the pipeline
+and CLI accept `crepe`; pYIN remains the default. The `crepe` extra installs the
+weights bundled in torchcrepe 0.0.24. Shared dataclass fields remain unchanged.
+
+Unlike torchcrepe's convenience `predict` function, each tracker owns its model
+cache. Neural inference is batched, but Viterbi decoding runs across the complete
+contour to avoid batch-boundary discontinuities. Conversion uses the network's
+fixed 20-cent bins without its random pitch dithering. An RMS gate preserves rests;
+raw periodicity is retained as confidence, with its limitations documented.
+The model's upper pitch limit is 2006 Hz, below C7. Models and numerical imports
+are lazy; default core installs remain free of audio dependencies.
+
+WP10 wiring adds `--start`/`--duration` in seconds. Cropping happens before separation
+and tracking. Note timestamps retain their original-file offset, so instructions
+for a chorus remain aligned with the source. Extreme, invalid and empty excerpts
+fail clearly. Excerpt flags on symbolic input fail instead of being silently ignored.
+
+The WP4 harness supports backend selection, capacity, confidence and hop settings,
+and records the full configuration. Real CPU tests cover note pitch, resampling,
+silence, batch-size invariance, instance-owned models and the excerpt CLI. A separate
+manual CI option runs CREPE tests and evaluation. Reference API:
+[torchcrepe](https://github.com/maxrmorrison/torchcrepe).
+
+The [28-case CREPE report](../eval/results/2026-10-11-crepe.md) records note F1 of
+0.778–1.000 on the seven backing fixtures, compared with pYIN's 0.000–0.133 baseline.
+Twenty clean/vibrato/noise cases retain perfect note F1 and tabs; wide-range Twinkle
+with vibrato regresses to 0.897 note F1 and 93.3% tabs. A separate, original D-minor
+probe reaches 1.000 on clean/noise and 0.941 on vibrato, but 0.000 with backing.
+This mixed result is why CREPE is optional and pYIN remains the default. No thresholds
+were changed to improve the new probe after seeing its result.
+
+Core checks, strict typing, lint and formatting pass. Three real CREPE CPU tests
+verify the tracker and excerpt CLI; a fourth verifies Demucs followed by CREPE.
+Two existing clean-audio CLI cases still pass. An isolated environment without
+NumPy/Torch also passes the core suite. Hosted CI and GPU inference remain untested.

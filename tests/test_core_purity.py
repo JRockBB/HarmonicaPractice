@@ -25,7 +25,7 @@ def test_core_and_render_import_no_heavy_modules() -> None:
         *root.joinpath("render").glob("*.py"),
     ]
     for path in paths:
-        for node in ast.walk(ast.parse(path.read_text())):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):
                 assert not {name.name.split(".")[0] for name in node.names} & forbidden
             if isinstance(node, ast.ImportFrom) and node.module:

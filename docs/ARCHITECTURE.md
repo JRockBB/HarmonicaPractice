@@ -56,6 +56,7 @@ eval/                  # transcription accuracy harness (mir_eval)
 Install extras: `pip install harptab` gives the core, symbolic ingest and rendering.
 `pip install 'harptab[audio]'` adds clean-source transcription;
 `pip install 'harptab[separation]'` adds Demucs source separation and the audio stack.
+`pip install 'harptab[crepe]'` adds the optional neural pitch tracker and audio stack.
 
 ## Data contracts (`models.py`)
 
@@ -129,7 +130,7 @@ Separation is the slowest step. Cache stems on disk keyed by file hash.
 ### 3. Pitch track
 Pluggable backends behind one interface `track(audio, sr) -> (times, f0_hz, voiced_prob)`:
 - `pyin` (librosa): default, no ML weights, decent on clean vocals.
-- `crepe` (torchcrepe): more accurate, needs torch.
+- `crepe` (torchcrepe): optional neural tracker, needs torch; measured against the same fixtures.
 - `basic-pitch`: polyphonic note output, useful when separation fails; reduce afterwards.
 
 ### 4. Segment

@@ -49,7 +49,7 @@ uv run harptab arrange solo.melody.json --harps C --mode practice
 The intermediate JSON can be edited before arrangement. Loading and tracking progress
 goes to stderr, leaving JSON on stdout valid. WAV and FLAC decode directly; codecs
 unsupported by the installed soundfile library require `ffmpeg` on PATH (for example,
-some M4A files). Audio is converted to mono at 22,050 Hz.
+some M4A files). Audio is converted to mono at 22,050 Hz for pYIN or 16,000 Hz for CREPE.
 
 The current tracker covers C2–C7 by default. The Python API exposes `PyinParams` and
 `SegmentParams` for frequency range, time resolution, tuning correction, confidence,
@@ -74,7 +74,29 @@ uv run --extra separation harptab instrumental.wav --stem other --device cpu --h
 The default stem is `vocals`; `other`, `bass` and `drums` are also available.
 Demucs separates instrument categories, so `other` may still contain chords and
 several instruments. For an already isolated source, keep using `--no-separate`.
-Only the `pyin` pitch backend is available. Repeated notes need an audible gap to be distinguished
+The optional `crepe` pitch backend provides a second tracker:
+
+```sh
+uv run --extra crepe harptab transcribe solo.wav --no-separate --pitch-backend crepe -o melody.json
+uv run --extra crepe --extra separation harptab transcribe song.wav --pitch-backend crepe --stem vocals --start 30 --duration 20 -o melody.json
+```
+
+`--start` and `--duration` select an audio excerpt in seconds before separation and
+tracking. Note timestamps remain relative to the original file. Start with a short
+section where the melody is clear. Omit these flags to process the entire recording.
+
+CREPE uses [torchcrepe](https://github.com/maxrmorrison/torchcrepe), whose wheel includes
+the pretrained weights. `CrepeParams` controls model size (`full`/`tiny`), batch size,
+CPU/CUDA selection, frequency range and confidence gating in the Python API.
+Its upper frequency limit is 2006 Hz, slightly below C7. Each tracker owns its model;
+Viterbi decoding spans inference batches and has no random pitch dithering.
+CREPE confidence is periodicity, not a calibrated probability of a correct note.
+pYIN remains the default: CREPE improves many backing cases but regresses on one
+wide-range vibrato fixture and fails an additional original backing probe. See the
+[CREPE comparison](eval/results/2026-10-11-crepe.md) and
+[original melody probe](eval/results/2026-10-11-crepe-probe.md).
+
+Repeated notes need an audible gap to be distinguished
 from one sustained note; dense backing, vocal ornaments and large tuning offsets
 can cause errors. The first audio operation may take longer while numerical kernels compile.
 

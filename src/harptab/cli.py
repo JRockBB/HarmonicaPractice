@@ -53,7 +53,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="transcribe a clean solo source without source separation",
     )
-    parser.add_argument("--pitch-backend", default="pyin", choices=("pyin",))
+    parser.add_argument("--pitch-backend", default="pyin", choices=("pyin", "crepe"))
+    parser.add_argument("--start", type=float, default=0.0, help="audio excerpt start in seconds")
+    parser.add_argument("--duration", type=float, help="audio excerpt length in seconds")
     parser.add_argument("--stem", choices=STEMS, default="vocals", help="melody's source stem")
     parser.add_argument("--separation-model", choices=MODELS, default="htdemucs")
     parser.add_argument(
@@ -84,6 +86,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 pitch_backend=args.pitch_backend,
                 stem=args.stem,
                 separation_params=separation,
+                start=args.start,
+                duration=args.duration,
                 progress=progress,
             )
             output = json.dumps(melody.to_dict(), indent=2, allow_nan=False) + "\n"
@@ -94,6 +98,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 pitch_backend=args.pitch_backend,
                 stem=args.stem,
                 separation_params=separation,
+                start=args.start,
+                duration=args.duration,
                 progress=progress,
             )
             choices = search(

@@ -3,7 +3,10 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
 from math import isfinite
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from harptab.transcribe.crepe import CrepeParams
 
 
 @dataclass(frozen=True)
@@ -100,8 +103,18 @@ class PyinTracker:
         return PitchTrack(times.tolist(), frequencies.tolist(), probabilities.tolist())
 
 
-def get_tracker(backend: str = "pyin", params: PyinParams | None = None) -> PitchTracker:
-    """Create a tracker; unsupported ML backends fail explicitly rather than falling back."""
-    if backend != "pyin":
-        raise ValueError(f"pitch backend {backend!r} is not implemented; use 'pyin'")
-    return PyinTracker(params)
+def get_tracker(
+    backend: str = "pyin", params: "PyinParams | CrepeParams | None" = None
+) -> PitchTracker:
+    """Create pYIN or optional CREPE without importing numerical libraries."""
+    if backend == "pyin":
+        if params is not None and not isinstance(params, PyinParams):
+            raise ValueError("pyin requires PyinParams")
+        return PyinTracker(params)
+    if backend == "crepe":
+        from harptab.transcribe.crepe import CrepeParams, CrepeTracker
+
+        if params is not None and not isinstance(params, CrepeParams):
+            raise ValueError("crepe requires CrepeParams")
+        return CrepeTracker(params)
+    raise ValueError(f"pitch backend {backend!r} is not implemented; use 'pyin' or 'crepe'")

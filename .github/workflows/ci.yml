@@ -8,6 +8,10 @@ on:
         description: Download Demucs weights and run CPU integration tests
         type: boolean
         default: false
+      crepe:
+        description: Run optional CREPE model tests and accuracy evaluation
+        type: boolean
+        default: false
 jobs:
   check:
     strategy:
@@ -64,3 +68,20 @@ jobs:
           python-version: '3.12'
       - run: uv sync --locked --extra separation
       - run: uv run --no-sync pytest tests/transcribe/test_separate.py -m audio
+  crepe:
+    if: github.event_name == 'workflow_dispatch' && inputs.crepe
+    runs-on: ubuntu-latest
+    env:
+      OMP_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv sync --locked --extra crepe --extra evaluation
+      - run: uv run --no-sync pytest tests/transcribe/test_crepe.py -m audio
+      - run: uv run --no-sync python -m eval --pitch-backend crepe --output eval/results/ci-crepe.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crepe-synthetic-baseline
+          path: eval/results/ci-crepe.md

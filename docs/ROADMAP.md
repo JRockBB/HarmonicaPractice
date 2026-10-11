@@ -7,10 +7,11 @@ The contracts in [`ARCHITECTURE.md`](ARCHITECTURE.md#data-contracts-modelspy) ar
 ## Milestones
 
 Implementation progress is recorded in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
-The current working tree implements WP0's core foundation, WP1, WP2, WP5, WP6,
-WP9, and the symbolic portion of WP10. The next implementation pass adds WP3's
-pYIN/loading path, WP4's synthetic evaluation, WP7 segmentation, and the clean-audio
-portion of WP10. Source separation and alternative ML pitch backends remain pending.
+The implementation covers WP0's foundation, WP1, WP2, WP5, WP6, WP7, WP8, WP9,
+and the symbolic/audio portions of WP10. WP3 supports pYIN and optional CREPE;
+basic-pitch remains pending. WP4 records synthesized transcription and separation
+evaluations. Mixed recordings still require checking against the source. The next
+usability milestone adds timed practice instructions and reference-tone playback.
 The original work-package descriptions below are retained
 as the design backlog; "merged" is a milestone criterion, not a claim that commits
 or pull requests have been created.
