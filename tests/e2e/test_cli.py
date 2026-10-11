@@ -75,18 +75,66 @@ def test_bad_input_is_friendly(content: str, tmp_path: Path) -> None:
     assert not result.stdout
 
 
-def test_pending_separation_and_bad_keys(tmp_path: Path) -> None:
+def test_missing_audio_and_bad_keys(tmp_path: Path) -> None:
     path = tmp_path / "song.wav"
-    path.touch()
     for args, message in [
-        ((path,), "Source separation"),
-        (("transcribe", path), "Source separation"),
+        ((path,), "does not exist"),
+        (("transcribe", path), "does not exist"),
         ((path, "--harps", "H"), "invalid harp key"),
+        ((path, "--stem", "lead"), "invalid choice"),
+        ((path, "--device", "mps"), "separation device"),
     ]:
         result = run_cli(*args)
         assert result.returncode == 2
         assert message in result.stderr
         assert "Traceback" not in result.stderr
+
+
+@pytest.mark.parametrize("command", ["transcribe", "arrange"])
+def test_cli_passes_separation_options(
+    command: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from harptab import cli
+    from harptab.models import NoteEvent
+
+    def load(path: Path, **kwargs: object) -> Melody:
+        assert kwargs["stem"] == "other"
+        assert not kwargs["no_separate"]
+        config = kwargs["separation_params"]
+        assert config.cache_dir == tmp_path
+        assert config.device == "cpu"
+        assert config.model == "htdemucs_ft"
+        assert not config.use_cache
+        kwargs["progress"]("Separating test input...")
+        return Melody([NoteEvent(72, 0, 1)])
+
+    monkeypatch.setattr(cli, "transcribe_audio" if command == "transcribe" else "load_melody", load)
+    assert (
+        cli.main(
+            [
+                command,
+                "song.wav",
+                "--stem",
+                "other",
+                "--device",
+                "cpu",
+                "--cache-dir",
+                str(tmp_path),
+                "--no-cache",
+                "--separation-model",
+                "htdemucs_ft",
+                "--format",
+                "json",
+            ]
+        )
+        == 0
+    )
+    captured = capsys.readouterr()
+    assert json.loads(captured.out)
+    assert "Separating test input" in captured.err
 
 
 @pytest.mark.parametrize("name,key", [("b", 11), ("bb", 10), ("B", 11), ("Cb", 11), ("f#", 6)])

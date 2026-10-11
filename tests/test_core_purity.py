@@ -12,6 +12,7 @@ def test_core_and_render_import_no_heavy_modules() -> None:
         "torch",
         "torchcrepe",
         "demucs",
+        "demucs_infer",
         "soundfile",
         "basic_pitch",
         "music21",

@@ -14,6 +14,10 @@ dependencies = ["mido>=1.3,<2"]
 musicxml = ["music21>=9,<10"]
 audio = ["librosa>=0.10.2,<1", "soundfile>=0.12,<1"]
 evaluation = ["librosa>=0.10.2,<1", "soundfile>=0.12,<1", "mir-eval>=0.8,<1"]
+separation = [
+    "librosa>=0.10.2,<1", "soundfile>=0.12,<1", "platformdirs>=4,<5",
+    "demucs-infer>=4.3,<4.4", "torch>=2.6,<3",
+]
 
 [project.scripts]
 harptab = "harptab.cli:main"
@@ -42,7 +46,7 @@ ignore_missing_imports = true
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
-module = ["numpy.*", "librosa.*", "soundfile.*"]
+module = ["numpy.*", "librosa.*", "soundfile.*", "torch.*", "demucs_infer.*", "platformdirs.*"]
 ignore_missing_imports = true
 follow_imports = "skip"
 follow_imports_for_stubs = true
@@ -51,4 +55,7 @@ follow_imports_for_stubs = true
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-m 'not audio'"
-markers = ["audio: optional synthesized-audio tests"]
+markers = [
+    "audio: optional synthesized-audio tests",
+    "separation: real model inference (requires HARPTAB_TEST_DEMUCS=1 and model downloads)",
+]

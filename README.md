@@ -3,7 +3,8 @@
 Arrange a melody for a ten-hole diatonic harmonica. The working implementation
 accepts melody JSON and MIDI, recommends a harp, and prints tabs or structured JSON.
 MusicXML is available with an optional dependency. The audio extra transcribes
-clean solo recordings with pYIN. Source separation for full mixes is still planned.
+clean solo recordings with pYIN. An optional Demucs stage isolates source stems
+before tracking; accuracy on a full mix depends on the material.
 
 ## Quick start
 
@@ -63,10 +64,32 @@ melody = transcribe_audio(
 )
 ```
 
-`--no-separate` is required until source separation is implemented. Only the `pyin`
-pitch backend is available. Repeated notes need an audible gap to be distinguished
+For a mix, install the separation extra and choose the melody's stem:
+
+```sh
+uv run --extra separation harptab transcribe song.wav --stem vocals -o song.melody.json
+uv run --extra separation harptab instrumental.wav --stem other --device cpu --harps C,G,A
+```
+
+The default stem is `vocals`; `other`, `bass` and `drums` are also available.
+Demucs separates instrument categories, so `other` may still contain chords and
+several instruments. For an already isolated source, keep using `--no-separate`.
+Only the `pyin` pitch backend is available. Repeated notes need an audible gap to be distinguished
 from one sustained note; dense backing, vocal ornaments and large tuning offsets
 can cause errors. The first audio operation may take longer while numerical kernels compile.
+
+Separation uses [demucs-infer](https://github.com/openmirlab/demucs-infer), an inference
+fork compatible with current Python/PyTorch, and downloads official Demucs weights
+on first use. `--device auto` selects CUDA when the installed PyTorch supports it,
+otherwise CPU. `--separation-model htdemucs_ft` selects the slower fine-tuned model;
+`htdemucs` is the default. CPU inference has been checked locally; CUDA is not yet tested.
+
+Stems and model weights live in the platform's `harptab` user cache directory.
+Use `--cache-dir PATH` to choose another directory or `--no-cache` to bypass stem
+storage/reuse (downloaded weights remain cached). Cache keys include file and decoded
+audio hashes, sample rate, model, stem, inference options and dependency versions.
+Cache hits avoid importing Torch or loading the model. The library exposes the same
+options through `SeparationParams` and `transcribe_audio(..., separation_params=...)`.
 
 ## Library API
 
@@ -99,6 +122,7 @@ uv build
 uv run python scripts/fixtures_to_midi.py
 uv run --extra evaluation pytest -m audio
 uv run --extra evaluation python -m eval
+uv run --extra separation --extra evaluation python -m eval.separation --benchmark-seconds 180
 ```
 
 The core has no audio dependencies. Tests include instrument/position coverage,
@@ -107,11 +131,22 @@ exact public-domain fixture tabs, and CLI tests. Audio tests use synthesized sig
 The evaluation harness writes a dated report under `eval/results/` with note F1,
 pitch accuracy, and tab accuracy for clean, vibrato, noise and backing variants.
 Without evaluation dependencies it reports N/A for audio and still checks core tabs.
-The separate audio CI job runs on manual workflow dispatch.
+The separate audio CI job runs on manual workflow dispatch; its optional `separation`
+checkbox also runs CPU model integration tests. Model-download tests are
+opt-in: set `HARPTAB_TEST_DEMUCS=1`, then run
+`uv run --extra separation pytest -m separation`. Set `HARPTAB_DEMUCS_CACHE` to reuse
+a model cache across those tests. Ordinary tests never download models.
 
 The [2026-10-11 baseline](eval/results/2026-10-11.md) achieved note F1 of 1.000 and
 100% tab accuracy on all seven clean, vibrato, and noise fixtures. Backing variants
-scored 0.000–0.133 note F1, so full mixes remain unsupported without separation.
+scored 0.000–0.133 note F1. Separation is measured independently with the comparison
+harness above; synthetic results do not establish accuracy on real-world mixes.
+The [separation comparison](eval/results/2026-10-11-separation.md) found a small mean
+pitch-accuracy gain (30.5% to 32.1%), with two regressions. Six of seven backed
+fixtures still have zero note F1. Full-mix transcription remains experimental.
+A three-minute synthesized file took 221 seconds to separate on a Ryzen 7 5800H CPU
+with four OpenMP threads; a cached read took 0.062 seconds. These timings exclude
+pitch tracking and the initial model download.
 
 Read the [implementation review and plan](docs/IMPLEMENTATION_PLAN.md),
 [architecture](docs/ARCHITECTURE.md), [roadmap](docs/ROADMAP.md), and

@@ -53,7 +53,9 @@ tests/
 eval/                  # transcription accuracy harness (mir_eval)
 ```
 
-Install extras: `pip install harptab` gives the core, symbolic ingest and rendering. `pip install harptab[audio]` adds the transcription stack.
+Install extras: `pip install harptab` gives the core, symbolic ingest and rendering.
+`pip install 'harptab[audio]'` adds clean-source transcription;
+`pip install 'harptab[separation]'` adds Demucs source separation and the audio stack.
 
 ## Data contracts (`models.py`)
 

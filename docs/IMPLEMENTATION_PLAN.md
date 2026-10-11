@@ -42,18 +42,19 @@ name `harptab`; the surrounding Julia development directory does not change that
 | 5. Full-song audio | WP8, remaining WP10, WP11 | Cached Demucs stems, measured CPU runtime and improvement over no separation, CLI integration |
 | 6. Usability | Selected Phase 4 items | Rhythm display, editable transcription workflow, playback |
 
-The first implementation pass covered steps 1–3. Work-package boundaries are handled
-sequentially in the same working tree; no commits or branches are created for the user.
-The following audio pass implements step 4 and wires the clean-audio path into the CLI.
-Source separation and beat tracking still have explicit unimplemented interfaces.
+The first implementation pass covered steps 1–3. The following audio pass implements
+step 4 and wires the clean-audio path into the CLI. Those passes were committed as
+`9434bb0` at the user's request. Step 5 continues on `feature/demucs-separation`, with
+WP8 followed by its WP10 wiring and WP4/WP11 evaluation/documentation in the same tree.
+Beat tracking retains an explicit unimplemented interface.
 
 ## Deliberate adjustments to the original roadmap
 
 - The symbolic CLI lands before all audio work, making M1 usable immediately.
 - Pure-core import enforcement includes transitive package imports.
 - The `audio` extra contains librosa and soundfile; `evaluation` adds mir_eval.
-  Torch, Demucs, torchcrepe and basic-pitch extras and their compatibility matrix
-  are deferred until their adapters exist.
+  The separate `separation` extra adds Demucs and Torch. Torchcrepe and basic-pitch
+  remain deferred until their adapters and compatibility checks exist.
 - CI covers core tests and wheel building. The audio test/evaluation job is separate
   and runs on manual workflow dispatch.
 - No dataclass field changes are required. Future tuning metadata, segmentation
@@ -93,14 +94,14 @@ This first pass did not validate audio accuracy or separation runtime.
   sustained pitch changes, brief-dropout bridging and onset-scoop absorption.
 - Estimate global sub-semitone tuning with circular residual statistics. Preserve
   the measured deviation in each note's existing `cents_offset` field.
-- Require `--no-separate` until WP8 is implemented. The CLI never silently claims
-  to isolate a melody from a full mix. `transcribe` writes editable Melody JSON;
+- The initial audio pass required `--no-separate`; WP8 now supplies the default
+  separation stage. `transcribe` writes editable Melody JSON;
   ordinary file input runs transcription followed by arrangement.
 - Evaluation synthesizes known melodies with 60 ms articulation, additive harmonics,
   deterministic noise, vibrato, or backing. References use the actual sounding
   durations; pYIN receives only the waveform. Scores use mir_eval note matching and
   frame pitch metrics, plus tab edit accuracy against the independently entered tabs.
-- Beat snapping, Demucs caching, CREPE and basic-pitch remain future work.
+- Beat snapping, CREPE and basic-pitch remain future work.
 
 An initial tuning comparison on Ode to Joy retained the 128-sample hop and
 0.1-semitone pitch grid. Doubling both reduced runtime, but vibrato note F1 fell
@@ -128,7 +129,76 @@ extras passed its core suite (269 tests at that check, plus the subsequently add
 recording-end clipping test). Lint, formatting, strict typing, lockfile validation,
 and source/wheel builds passed. Hosted CI remains unexecuted locally.
 
-Next: implement WP8 (Demucs with explicit cache configuration and cache-hit tests),
-measure improvement on the existing backing variants, and document CPU runtime.
-Keep CREPE/basic-pitch optional and test their dependency compatibility before
-advertising those backends. No shared dataclass changes are required by this pass.
+## Source-separation implementation decisions
+
+- Use the maintained [demucs-infer](https://github.com/openmirlab/demucs-infer)
+  inference fork. Original Demucs 4.0.1 pins TorchAudio below 2.1; that dependency
+  set does not fit the current Python 3.12 environment. The fork retains official
+  Demucs architectures/checkpoints and supports modern PyTorch loading.
+- Keep numerical/model imports lazy. The arranger, CLI import and cache-hit path
+  do not load Torch. Core installs continue to support all symbolic operations.
+- `separate` accepts mono input and returns finite float32 at the same rate and exact
+  sample count. Duplicate mono to stereo for Demucs, then average and resample its
+  output back to the requested rate. Preserving original stereo for separation would
+  require revisiting the stage-1 mono contract and is deferred.
+- `SeparationParams` controls model, device, chunk length, overlap, shift averaging,
+  cache root and stem caching. Defaults disable random shifts. CPU works; automatic
+  CUDA selection is implemented but GPU inference remains untested locally.
+- Cache keys include the source-file digest, decoded samples, sample rate, model,
+  stem, inference settings and relevant package versions. Read with pickle disabled,
+  validate key/shape/dtype/finite samples, recover by recomputing corrupt entries,
+  and atomically replace completed cache files. Downloaded weights and stems live
+  outside source control. `--no-cache` bypasses stems but retains model downloads.
+- Wire `--stem`, `--device`, `--separation-model`, `--cache-dir`, `--no-cache` and the
+  existing `--no-separate` through the CLI. Progress stays on stderr; editable
+  Melody JSON and all shared dataclasses retain their existing contracts.
+- Extend WP4 through `python -m eval.separation`, comparing the same backing fixtures
+  before and after separation. The synthetic instrumental lead uses `other`;
+  Demucs source categories cannot isolate a melody from other instruments in that stem.
+- Gate real model-download tests behind `HARPTAB_TEST_DEMUCS=1`, with a separate
+  manual CI option. Ordinary core/audio tests exercise configuration, caching,
+  corrupt-cache recovery, dependency errors, pipeline wiring and bypass without downloads.
+
+Next work should be selected from the measured separation report: improve melody
+tracking under residual accompaniment before claiming full-mix transcription quality.
+Keep CREPE/basic-pitch optional and validate their dependency compatibility first.
+No shared dataclass changes are required by this pass.
+
+## Separation accuracy and next iteration
+
+The [backing comparison](../eval/results/2026-10-11-separation.md) uses the same seven
+fixtures and defaults as the baseline. Mean frame pitch accuracy changes from about
+30.5% to 32.1%. Mary improves from 22.7% to 68.9%; Twinkle and its wide-range variant
+regress. Wide-range Twinkle's note F1 improves from 0.133 to 0.353 and tab accuracy
+from 7.1% to 21.4%. The other six fixtures still produce zero note F1.
+
+This supports only a modest average pitch improvement. A functioning separator does
+not establish a reliable mixed-recording-to-tab pipeline. The next accuracy iteration
+should inspect octave errors and missing voiced spans on these saved references,
+then compare an optional CREPE tracker through the existing `PitchTrack` boundary.
+Keep pYIN as the default until a candidate improves the backing cases without
+regressing clean, vibrato and noise fixtures. Add held-out synthesized mixtures to
+avoid selecting settings solely for these seven short excerpts.
+
+## Source-separation verification
+
+On Windows/Python 3.12.10, a 180-second synthesized WAV separated in 221.03 seconds
+using an AMD Ryzen 7 5800H CPU and `OMP_NUM_THREADS=4`. A cached read took 0.062
+seconds. Output sample count, dtype, finite values and repeatability were checked;
+timings exclude pitch tracking, decoding and initial model download.
+
+- 292 core tests pass with optional dependencies present.
+- 23 cache/validation audio tests pass without loading a model.
+- Two real Demucs integration tests pass, including frequency/rate preservation,
+  cache reuse, and the CLI's clean JSON stdout.
+- Two clean-audio CLI regression cases pass (Ode to Joy and silence).
+- An isolated environment verified that NumPy and Torch were absent, then passed
+  289 tests with five optional-dependency skips. The two later missing-extra-message
+  tests also pass in the normal suite with dependencies explicitly mocked absent.
+- Ruff formatting/lint, strict mypy, lockfile validation, workflow YAML parsing and
+  source/wheel builds pass. Hosted CI and CUDA inference have not been run locally.
+
+WP8's CPU and caching requirements are met; average pitch accuracy improves only
+slightly. The remaining full-mix quality limitations are explicit above. This pass
+requires no shared-contract changes and coordinates only WP8, its WP10 wiring,
+and WP4/WP11 verification and documentation.

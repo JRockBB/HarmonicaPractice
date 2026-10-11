@@ -114,7 +114,8 @@ def main() -> int:
         ),
         "```",
         "",
-        "Source separation and ML pitch backends remain unimplemented.",
+        "For a source-separation comparison, run `python -m eval.separation` with its extras.",
+        "ML pitch backends remain unimplemented.",
         "These synthetic results do not establish accuracy on singing or commercial mixes.",
     ]
     if not available:

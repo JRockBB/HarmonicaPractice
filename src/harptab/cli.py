@@ -10,6 +10,7 @@ from harptab.core.search import search
 from harptab.pipeline import load_melody, transcribe_audio
 from harptab.render.json import render_json
 from harptab.render.text import render_text
+from harptab.transcribe.separate import MODELS, STEMS, SeparationParams
 
 
 def _harps(value: str) -> list[int]:
@@ -53,6 +54,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         help="transcribe a clean solo source without source separation",
     )
     parser.add_argument("--pitch-backend", default="pyin", choices=("pyin",))
+    parser.add_argument("--stem", choices=STEMS, default="vocals", help="melody's source stem")
+    parser.add_argument("--separation-model", choices=MODELS, default="htdemucs")
+    parser.add_argument(
+        "--device", default="auto", help="separation device: auto, cpu, cuda or cuda:N"
+    )
+    parser.add_argument("--cache-dir", type=Path, help="directory for stems and model weights")
+    parser.add_argument(
+        "--no-cache", action="store_true", help="recompute stems without caching them"
+    )
     args = parser.parse_args(arguments)
     if args.alternatives < 0:
         parser.error("--alternatives must be nonnegative")
@@ -61,11 +71,19 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(message, file=sys.stderr, flush=True)
 
     try:
+        separation = SeparationParams(
+            model=args.separation_model,
+            device=args.device,
+            cache_dir=args.cache_dir,
+            use_cache=not args.no_cache,
+        )
         if command == "transcribe":
             melody = transcribe_audio(
                 args.file,
                 no_separate=args.no_separate,
                 pitch_backend=args.pitch_backend,
+                stem=args.stem,
+                separation_params=separation,
                 progress=progress,
             )
             output = json.dumps(melody.to_dict(), indent=2, allow_nan=False) + "\n"
@@ -74,6 +92,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                 args.file,
                 no_separate=args.no_separate,
                 pitch_backend=args.pitch_backend,
+                stem=args.stem,
+                separation_params=separation,
                 progress=progress,
             )
             choices = search(

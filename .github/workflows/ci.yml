@@ -1,5 +1,13 @@
 name: Core
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      separation:
+        description: Download Demucs weights and run CPU integration tests
+        type: boolean
+        default: false
 jobs:
   check:
     strategy:
@@ -42,3 +50,17 @@ jobs:
         with:
           name: synthetic-audio-baseline
           path: eval/results/ci.md
+  separation:
+    if: github.event_name == 'workflow_dispatch' && inputs.separation
+    runs-on: ubuntu-latest
+    env:
+      HARPTAB_TEST_DEMUCS: '1'
+      HARPTAB_DEMUCS_CACHE: .tools/separation-cache
+      OMP_NUM_THREADS: '4'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.12'
+      - run: uv sync --locked --extra separation
+      - run: uv run --no-sync pytest tests/transcribe/test_separate.py -m audio
