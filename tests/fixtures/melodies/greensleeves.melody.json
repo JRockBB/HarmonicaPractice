@@ -1,0 +1,61 @@
+{
+  "notes": [
+    {
+      "pitch": 69,
+      "start": 0,
+      "duration": 0.5
+    },
+    {
+      "pitch": 72,
+      "start": 0.5,
+      "duration": 0.5
+    },
+    {
+      "pitch": 74,
+      "start": 1,
+      "duration": 0.5
+    },
+    {
+      "pitch": 76,
+      "start": 1.5,
+      "duration": 0.5
+    },
+    {
+      "pitch": 77,
+      "start": 2,
+      "duration": 0.5
+    },
+    {
+      "pitch": 76,
+      "start": 2.5,
+      "duration": 0.5
+    },
+    {
+      "pitch": 74,
+      "start": 3,
+      "duration": 0.5
+    },
+    {
+      "pitch": 71,
+      "start": 3.5,
+      "duration": 0.5
+    },
+    {
+      "pitch": 67,
+      "start": 4,
+      "duration": 0.5
+    },
+    {
+      "pitch": 69,
+      "start": 4.5,
+      "duration": 0.5
+    }
+  ],
+  "tempo_bpm": 120,
+  "key_estimate": {
+    "tonic": 9,
+    "mode": "minor",
+    "confidence": 1
+  },
+  "source": "greensleeves"
+}

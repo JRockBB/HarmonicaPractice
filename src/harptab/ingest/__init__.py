@@ -1,0 +1,1 @@
+"""Symbolic melody input adapters."""

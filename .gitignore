@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.hypothesis/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.egg-info/
+.tools/
+.uv-cache/
+eval/local/
+tests/fixtures/midi/
