@@ -8,7 +8,9 @@ from pathlib import Path
 
 from harptab.core.search import search
 from harptab.pipeline import load_melody, transcribe_audio
+from harptab.playback import PreviewOptions, preview_wav
 from harptab.render.json import render_json
+from harptab.render.practice import PracticeOptions, render_practice
 from harptab.render.text import render_text
 from harptab.transcribe.separate import MODELS, STEMS, SeparationParams
 
@@ -43,7 +45,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--skill", choices=("beginner", "intermediate", "advanced"), default="intermediate"
     )
     parser.add_argument("--overblows", action="store_true", help="allow overblows and overdraws")
-    parser.add_argument("--format", choices=("text", "json"), default="text")
+    parser.add_argument("--format", choices=("text", "json", "practice"), default="text")
+    parser.add_argument(
+        "--practice-speed", type=float, default=0.75, help="practice speed in (0, 1]"
+    )
+    parser.add_argument("--preview", type=Path, help="write reference-tone WAV at practice speed")
     parser.add_argument(
         "--alternatives", type=int, default=0, metavar="N", help="number of additional choices"
     )
@@ -73,6 +79,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(message, file=sys.stderr, flush=True)
 
     try:
+        targets = [
+            args.file,
+            *([args.output] if args.output else []),
+            *([args.preview] if args.preview else []),
+        ]
+        for index, path in enumerate(targets):
+            for other in targets[index + 1 :]:
+                if path.resolve() == other.resolve() or (
+                    path.exists() and other.exists() and path.samefile(other)
+                ):
+                    raise ValueError("input, output and preview paths must be different")
+        practice = PracticeOptions(speed=args.practice_speed)
+        preview_options = PreviewOptions(speed=args.practice_speed)
+        if command == "transcribe" and args.format == "practice":
+            raise ValueError(
+                "a practice guide requires arrangement; use 'harptab FILE --format practice'"
+            )
         separation = SeparationParams(
             model=args.separation_model,
             device=args.device,
@@ -80,6 +103,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             use_cache=not args.no_cache,
         )
         if command == "transcribe":
+            arrangement = None
             melody = transcribe_audio(
                 args.file,
                 no_separate=args.no_separate,
@@ -112,10 +136,21 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             if not choices:
                 raise ValueError("input contains no melody notes")
-            renderer = render_json if args.format == "json" else render_text
-            output = renderer(melody, choices[0], alternatives=choices[1:])
+            arrangement = choices[0]
+            if args.format == "practice":
+                output = render_practice(
+                    melody, arrangement, options=practice, alternatives=choices[1:]
+                )
+            else:
+                renderer = render_json if args.format == "json" else render_text
+                output = renderer(melody, arrangement, alternatives=choices[1:])
+        if args.preview:
+            preview_wav(args.preview, melody, arrangement, options=preview_options)
+            progress(
+                f"Wrote reference-tone preview at {args.practice_speed:.0%} speed: {args.preview}"
+            )
         if args.output:
-            args.output.write_text(output, encoding="utf-8")
+            args.output.write_text(output, encoding="utf-8", newline="\n")
         else:
             sys.stdout.write(output)
     except (OSError, ValueError, ImportError, NotImplementedError, EOFError) as error:

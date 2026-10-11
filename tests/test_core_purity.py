@@ -32,7 +32,8 @@ def test_core_and_render_import_no_heavy_modules() -> None:
                 assert node.module.split(".")[0] not in forbidden
     script = (
         "import sys; import harptab; import harptab.render.text; import harptab.render.json; "
-        "import harptab.cli; import harptab.pipeline; "
+        "import harptab.cli; import harptab.pipeline; import harptab.render.practice; "
+        "import harptab.playback; "
         f"assert not ({{name.split('.')[0] for name in sys.modules}} & {forbidden!r})"
     )
     subprocess.run([sys.executable, "-c", script], check=True, capture_output=True, text=True)

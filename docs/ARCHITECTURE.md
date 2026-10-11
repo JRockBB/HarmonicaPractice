@@ -46,6 +46,8 @@ src/harptab/
   render/
     text.py            # stage 7: plain-text tab
     json.py            # machine-readable output
+    practice.py        # timed Markdown practice instructions
+  playback.py          # standard-library reference-tone WAV export
   cli.py               # `harptab` command
 tests/
   core/ transcribe/ ingest/ render/ e2e/
@@ -175,6 +177,12 @@ Text format (see `harmonica-reference.md` for notation):
 - Optional rhythm row under each line in a later phase.
 
 JSON output is the `Arrangement` plus the `Melody`, for front ends.
+
+Practice output adds explicit hole, breath and bend instructions, short phrases,
+source timestamps, slowed hold/rest durations and confidence-review markers.
+It preserves unplayable gaps and labels transpositions. Reference-tone WAV export
+uses the existing note times and arranged pitches, without audio dependencies.
+It is a checking/practice aid, not a harmonica sound model or a beat-grid estimate.
 
 ## Difficulty model (`difficulty.py`)
 

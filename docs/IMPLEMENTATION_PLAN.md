@@ -241,3 +241,38 @@ Core checks, strict typing, lint and formatting pass. Three real CREPE CPU tests
 verify the tracker and excerpt CLI; a fourth verifies Demucs followed by CREPE.
 Two existing clean-audio CLI cases still pass. An isolated environment without
 NumPy/Torch also passes the core suite. Hosted CI and GPU inference remain untested.
+
+## First song-to-practice milestone
+
+WP9 and selected Phase 4 work add `render_practice`/`PracticeOptions` and
+`preview_wav`/`PreviewOptions`, wired through WP10's CLI. The guide spells out each
+hole, breath direction and bend; preserves gaps; groups short phrases; retains source
+timestamps; scales practice durations; and flags uncertain notes for review. Transposed
+arrangements explicitly describe their pitch shift. The reference-tone WAV uses the
+same arranged pitches and slowed timing, omitting unplayable notes as silence.
+Both modules use only the standard library and existing contracts. No dataclass
+field changes or audio dependencies are introduced to the arrangement/rendering core.
+
+CLI additions are `--format practice`, `--practice-speed` and `--preview`. Input,
+guide and preview paths must be distinct (including existing file aliases), preventing
+an export from overwriting the source. WAV allocation has a five-minute default limit;
+longer recordings should be practiced as excerpts. This is timed guidance in seconds;
+tempo estimation and beat notation remain outside this pass.
+
+The included Ode to Joy guide demonstrates the complete output. Tests cover every
+action type, low-confidence review, transposition, gaps, slowed timing, preview pitch
+preservation, source-file protection, and guide/WAV generation for all seven fixtures.
+The optional-audio boundary remains intact in a fresh core-only environment.
+
+This is a useful point for a first assisted user-song trial: select a short, clear
+melody, transcribe it, compare the preview, correct uncertain notes, and export the
+guide for the user's actual harp. It does not establish reliable unattended full-mix
+transcription. A local/self-service web uploader remains a separate Phase 4 task.
+
+Final local verification for this milestone: 345 core tests pass with extras present;
+344 pass with five optional-dependency skips in an isolated environment without
+NumPy or Torch. The real CREPE/Demucs checks and clean-audio regressions described
+above pass. An additional synthesized backing-recording CLI run exports all 15 Ode
+to Joy tab tokens exactly, plus a valid mono practice WAV. Formatting, lint, strict
+typing, lockfile checks and source/wheel builds pass. Local soundfile decoding
+supports WAV, MP3 and FLAC; formats requiring ffmpeg still need that executable.

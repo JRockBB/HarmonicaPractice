@@ -69,7 +69,7 @@ def transcribe_audio(
         audio = audio[offset:end]
         if progress:
             progress(
-                f"Selected {offset / params.sample_rate:.2f}s–"
+                f"Selected {offset / params.sample_rate:.2f}s to "
                 f"{(offset + len(audio)) / params.sample_rate:.2f}s..."
             )
     if not no_separate:

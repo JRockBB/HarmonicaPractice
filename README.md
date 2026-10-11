@@ -4,7 +4,8 @@ Arrange a melody for a ten-hole diatonic harmonica. The working implementation
 accepts melody JSON and MIDI, recommends a harp, and prints tabs or structured JSON.
 MusicXML is available with an optional dependency. The audio extra transcribes
 clean solo recordings with pYIN. An optional Demucs stage isolates source stems
-before tracking; accuracy on a full mix depends on the material.
+before tracking; accuracy on a full mix depends on the material. Practice guides
+explain each hole/breath/bend with timestamps, and a WAV preview lets you hear the notes.
 
 ## Quick start
 
@@ -112,6 +113,38 @@ storage/reuse (downloaded weights remain cached). Cache keys include file and de
 audio hashes, sample rate, model, stem, inference options and dependency versions.
 Cache hits avoid importing Torch or loading the model. The library exposes the same
 options through `SeparationParams` and `transcribe_audio(..., separation_params=...)`.
+
+## Try a song and get practice instructions
+
+The workflow is ready for **short, reviewed song trials**. Start with a 20–30-second
+section where the melody is clear. A full mix can still produce incorrect or missing
+notes; listen to the reference-tone preview and compare it with the recording.
+
+For example, extract the vocal melody from 30–50 seconds into a song:
+
+```sh
+uv run --extra crepe --extra separation harptab transcribe song.mp3 --pitch-backend crepe --stem vocals --start 30 --duration 20 -o melody.json --preview detected.wav
+uv run harptab arrange melody.json --harps C --format practice --preview practice.wav -o practice.md
+```
+
+Use the keys printed on your own harmonicas in `--harps`. For an instrumental lead,
+try `--stem other`; for an isolated voice or solo instrument, use `--no-separate`.
+If the preview has mistakes, edit the note pitches/times in `melody.json` and rerun
+the arrangement command. Unplayable notes remain `?` and silent gaps in the preview.
+`--mode practice` may shift the melody to fit; the guide clearly reports that shift.
+
+The Markdown guide breaks the tune into short phrases, spells out blow/draw and
+bends, and flags low-confidence notes for review. Times refer to the original recording.
+`--practice-speed 0.5` gives half-speed hold/rest times and playback without lowering
+the pitch; the default is 0.75. WAV previews start at the first displayed note and
+use simple reference tones, not a simulated harmonica. The preview limit is five
+minutes at the selected practice speed; choose a shorter excerpt for longer material.
+
+Try the included [Ode to Joy practice guide](docs/examples/ode-to-joy-practice.md), or generate it:
+
+```sh
+uv run harptab tests/fixtures/melodies/ode_to_joy.melody.json --harps C --format practice --preview practice.wav -o practice.md
+```
 
 ## Library API
 
