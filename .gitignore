@@ -10,4 +10,6 @@ dist/
 .tools/
 .uv-cache/
 eval/local/
+sample/
+samples/
 tests/fixtures/midi/
