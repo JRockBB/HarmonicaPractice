@@ -118,7 +118,7 @@ options through `SeparationParams` and `transcribe_audio(..., separation_params=
 
 The workflow is ready for **short, reviewed song trials**. Start with a 20–30-second
 section where the melody is clear. A full mix can still produce incorrect or missing
-notes; listen to the reference-tone preview and compare it with the recording.
+notes; listen to the preview and compare it with the recording.
 
 For example, extract the vocal melody from 30–50 seconds into a song:
 
@@ -137,8 +137,17 @@ The Markdown guide breaks the tune into short phrases, spells out blow/draw and
 bends, and flags low-confidence notes for review. Times refer to the original recording.
 `--practice-speed 0.5` gives half-speed hold/rest times and playback without lowering
 the pitch; the default is 0.75. WAV previews start at the first displayed note and
-use simple reference tones, not a simulated harmonica. The preview limit is five
-minutes at the selected practice speed; choose a shorter excerpt for longer material.
+play a bundled bank of real harmonica recordings from
+[basic-harmonica](https://github.com/michael02022/basic-harmonica), released under
+CC0. Each note uses a nearby recorded sample, adjusted to the target pitch; long
+notes repeat its sustain loop. Bends sound at their target pitches without a
+bend-in gesture, and the bank does not distinguish blow/draw timbres. Use
+`--preview-voice sine` for the original plain reference tones, or
+`PreviewOptions(voice="sine")` in the Python API. Both voices work without audio
+extras or downloads. Sample provenance and conversion details are in
+[the sample credits](src/harptab/assets/harmonica/SOURCE.md).
+The preview limit is five minutes at the selected
+practice speed; choose a shorter excerpt for longer material.
 
 Try the included [Ode to Joy practice guide](docs/examples/ode-to-joy-practice.md), or generate it:
 
@@ -146,7 +155,49 @@ Try the included [Ode to Joy practice guide](docs/examples/ode-to-joy-practice.m
 uv run harptab tests/fixtures/melodies/ode_to_joy.melody.json --harps C --format practice --preview practice.wav -o practice.md
 ```
 
-## Library API
+## Chords and fuller arrangements
+
+Chord mode preserves simultaneous source notes and assigns playable groups of
+2-4 adjacent holes on the same breath. `[1 2 3]` means blow all three holes together;
+`[-4 -5 -6]` means draw all three together. Single-note mode remains the default.
+
+```sh
+uv run harptab score.mid --chords --harps C,G,A --format practice --preview chords.wav -o chords.md
+uv run harptab score.json --chords --harps G --format json -o chord-tab.json
+uv run --extra audio harptab reviewed-melody.json --harmony-audio instrumental-stem.wav --harps G,A,C --format json -o candidates.json
+uv run harptab candidates.json --chords --harps G --format practice --preview practice.wav -o practice.md
+```
+
+`--harmony-audio` uses an isolated instrumental stem with the **same time origin** as
+the reviewed melody. It proposes persistent lower notes during those events and
+keeps their timing and melody pitches. Review/edit the resulting `score.events`
+before practicing: spectral peaks can be overtones, bleed, or backing layers.
+This does not establish reliable automatic chord recognition in arbitrary mixes.
+
+MIDI chord mode combines non-percussion tracks; MusicXML combines pitched parts.
+The highest pitch is the default melody. Score JSON can set `melody_pitch` for each
+event to protect a different voice. Unsupported harmony is listed as omitted;
+unsupported melody remains a rest. Search favors playable melody before harmony
+coverage. The best harp for a single melody can differ from the best harp for chords.
+
+```python
+from harptab import ChordEvent, ChordScore, search_chords
+from harptab.playback import preview_chords_wav
+from harptab.render.chords import render_chord_practice
+
+score = ChordScore([ChordEvent((60, 64, 67), start=0, duration=0.5)])
+best = search_chords(score, harps=[0])[0]
+print(render_chord_practice(score, best))  # [1 2 3], simultaneously
+preview_chords_wav("chord.wav", score, best)
+```
+
+Chord playback uses the same recorded harmonica bank, mixes the assigned notes,
+and limits peaks without clipping. Bent/over-notes are supported as individual
+notes, with over-notes requiring `--overblows`. Chord bends, tongue-blocked splits,
+and independent legato voices are not yet modeled; symbolic voice changes
+rearticulate the block. The core and chord playback need no audio extras.
+
+## Single-note library API
 
 ```python
 from harptab import KeyEstimate, Melody, NoteEvent, search
@@ -165,6 +216,94 @@ print(render_text(melody, best))
 contains `melody` and `arrangement` and can also be fed back to `harptab arrange`.
 All times are seconds; pitches are MIDI integers. Notes must be sorted and monophonic.
 
+## Live microphone practice
+
+Save a reviewed arrangement as JSON, then launch the local listener:
+
+```sh
+uv run --no-sync harptab arrange tests/fixtures/melodies/ode_to_joy.melody.json --harps C --format json -o practice.json
+uv run --no-sync harptab listen practice.json
+```
+
+For existing A and G versions, pass both arranged JSON files:
+
+```sh
+uv run --no-sync harptab listen a-arrangement.json g-arrangement.json
+```
+
+The browser opens at `http://127.0.0.1:8765/`. Select the arrangement, click
+**Start practice** and allow microphone access. A large three-second count-in leads
+into the phrase. The display shows upcoming notes, a moving play position, hold/rest
+durations, target notes/chords, the notes it hears, sharp/flat cents and hole/breath
+guidance. **Start microphone** also works independently for checking your pitch.
+**Save guide** downloads the selected harp's guide at 50% speed.
+
+The **light-up harmonica** shows the exact holes from the selected arrangement,
+including every hole in a chord. Its label tells you to inhale or exhale and calls
+out bends and over-notes. The lights turn off for rests and breath breaks. Song
+names come from the source filename when available; loading another arrangement
+changes the notes, holes, timing and score targets without changing application code.
+
+During a run, the matched/missed/skipped counter and marked phrase steps show your
+progress. Afterward, **Your last run** gives a percentage and per-step review with
+detected extra notes, missing chord notes, tuning or input problems. Select a tab
+in the review to retry from that step. Results stay visible during replay and loops.
+The score is the share of playable steps with a sustained pitch match; skipped
+steps earn no credit, and unavailable notes are excluded. It measures detected
+pitch matches, not rhythm, tone or overall musicianship. Demo results are labeled.
+
+- **Follow along** (default): follow the arrangement's timing and rests at 50%,
+  75% or full speed. Misses and extra detected notes do not stop the phrase, and
+  pitches stay unchanged. Only matched steps receive credit.
+- **Step by step:** hold the correct pitches, then briefly pause your breath to
+  move through the phrase. Repeated notes require separate breaths.
+- Select any step or use Previous/Next to move without stopping a running session.
+  Restart returns to the beginning; Loop repeats with a fresh count-in. The
+  **visual demo** uses explicitly labeled simulated input without a microphone.
+
+**Review what you played** keeps your actual microphone recording and the full
+detected-note timeline for each new practice take. Press **Listen to my take**, drag
+the timeline, or jump to a step to compare target notes with the notes detected at
+that moment. **Finish & review** saves a partial take; Pause also saves a take, and
+continuing begins another. Loop iterations are kept separately. The recording
+includes the count-in, but playback initially seeks to the first target.
+
+Takes survive song changes and remain in the current tab until you delete them,
+close it, or reload. **Download audio** keeps the original microphone recording;
+**Download notes** exports the full take's timing and note measurements as JSON.
+Recordings are prepared as seekable WAV audio when browser decoding is available,
+with the browser's original format retained as a fallback. Starting only the microphone and
+the visual demo do not record takes. Playing a take stops microphone capture so
+the replay cannot be scored as new playing. If recording fails, the UI identifies
+the take as timeline-only. Past audio from before recording was implemented cannot
+be recovered.
+
+Audio stays in your browser and is never uploaded. Stop the microphone to release
+it; hiding the tab saves the current take and stops capture. Use headphones for a
+backing track. The noise gate and cents tolerance are adjustable. The detector
+smooths the note display and briefly retains it as **Last heard** during dropouts;
+retained readings do not count toward practice matches. The input readout explains
+whether the sound is below the noise gate or its pitch is unclear. The detector
+hears pitches, not which hole or technique you used. Chord estimates can confuse
+overtones, octave chords, echoes and quiet reeds; use Next when a chord won't lock.
+This first version has automated signal tests but still needs physical microphone
+trials in real rooms.
+
+**Detected-note details** shows measured frequency, relative level and possible
+fingerings on the selected harp. For example, Ab4/G#4 is hole 3 draw on an A harp;
+its presence could indicate an adjacent reed sounding or a detection error.
+**Save note diagnostics** downloads six seconds of note measurements for debugging.
+This is a local JSON download, with no recorded audio or upload.
+
+Only existing rendered melody/chord JSON is accepted. Raw melodies/scores must be
+arranged first with `--format json`; chord input also uses `--chords`. Targets
+reflect the actual voicing and transposition, not omitted source harmony.
+No audio extras or runtime Node installation are required. `--no-browser` prints
+the URL without opening it, `--port` selects another port, and Ctrl+C stops the
+server. If microphone access is unavailable, open the loopback URL in a normal
+browser tab; browser capture requires a secure context, including localhost.
+See [the microphone API documentation](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia#privacy_and_security).
+
 ## Development
 
 ```sh
@@ -173,6 +312,7 @@ uv run ruff format --check .
 uv run ruff check .
 uv run mypy
 uv run pytest
+node --test tests/listener/*.test.mjs
 uv build
 uv run python scripts/fixtures_to_midi.py
 uv run --extra evaluation pytest -m audio
@@ -180,7 +320,8 @@ uv run --extra evaluation python -m eval
 uv run --extra separation --extra evaluation python -m eval.separation --benchmark-seconds 180
 ```
 
-The core has no audio dependencies. Tests include instrument/position coverage,
+Listener development tests use Node 22+; runtime microphone processing uses the
+browser's built-in audio APIs. The core has no audio dependencies. Tests include instrument/position coverage,
 Viterbi comparisons against exhaustive paths, search invariants, MIDI tempo changes,
 exact public-domain fixture tabs, and CLI tests. Audio tests use synthesized signals.
 The evaluation harness writes a dated report under `eval/results/` with note F1,

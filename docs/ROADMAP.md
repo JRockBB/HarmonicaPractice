@@ -11,7 +11,7 @@ The implementation covers WP0's foundation, WP1, WP2, WP5, WP6, WP7, WP8, WP9,
 and the symbolic/audio portions of WP10. WP3 supports pYIN and optional CREPE;
 basic-pitch remains pending. WP4 records synthesized transcription and separation
 evaluations. Mixed recordings still require checking against the source. The practice
-workflow includes timed instructions and reference-tone playback;
+workflow includes timed instructions and sampled harmonica/sine playback;
 beat-grid rhythm notation and a self-service web uploader remain future work.
 The original work-package descriptions below are retained
 as the design backlog; "merged" is a milestone criterion, not a claim that commits
@@ -199,6 +199,43 @@ Phase 3: WP10, then WP11.
 ---
 
 ## Phase 4: backlog (pick as needed)
+
+### Live listening pass
+
+Authorized by the user's request for an A-harmonica guide and a live visual of
+played versus expected notes. Owns `listener.py`, `assets/listener/`,
+`tests/listener/`, with coordinated WP10 CLI, packaging/CI and usage documentation.
+Shared music contracts remain unchanged.
+
+Implemented: local microphone capture, target-independent pitch estimates,
+simultaneous pitch feedback, cents display, pitch history, selectable arrangements,
+wait/timed progression, slowed timing, guide downloads and a simulated-input demo.
+Practice results include a pitch-match percentage, per-step reasons and retry
+controls. The harmonica diagram lights the selected arrangement's actual holes
+and labels breath direction, bends and over-notes. These use arbitrary loaded
+arrangements; song-specific sequences are not embedded in the listener.
+Actual microphone takes can be replayed, scrubbed against the full detected-note
+timeline, downloaded or deleted. Each loop/partial take is retained in the tab;
+downloads preserve it beyond reload. The demo never creates a recording.
+Tests cover real packaged harmonica samples, synthesized single notes/chords/noise,
+repeat-note breath breaks, rests, input cancellation, permission failure and device
+loss. Physical microphone and room accuracy still require user trials. Reliable
+octave-chord recognition, rhythm grading, latency calibration and song uploading
+remain future work.
+
+### Chord-support pass
+
+Authorized by the user's request to fix omitted harmonica chords. Coordinates WP0
+contracts, WP1/WP5/WP6 physical assignment, WP2 symbolic ingest, WP3 assisted harmony
+analysis, WP9 rendering/playback, and WP10 CLI in one additive feature. Existing
+monophonic contracts and default behavior remain compatible. New `ChordScore` and
+`ChordArrangement` contracts are specified in ARCHITECTURE.md.
+
+Implemented: same-breath contiguous block chords, exact melody retention with
+explicit harmony omissions, symbolic chord preservation, reviewed-audio harmony
+candidates, simultaneous recorded playback, JSON and timed multi-hole instructions.
+Remaining: reliable unattended polyphonic transcription, chord bends, tongue-blocked
+splits, independent legato voices, and more realistic coupled-reed chord timbre.
 
 - **Rhythm row** under each tab line (from beat grid: quarter, eighth, held).
 - **Tempo and beat tracking** (`transcribe/tempo.py`) feeding phrase breaks and rhythm.

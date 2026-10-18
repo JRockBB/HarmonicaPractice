@@ -6,9 +6,11 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from harptab.core.chords import search_chords
 from harptab.core.search import search
-from harptab.pipeline import load_melody, transcribe_audio
-from harptab.playback import PreviewOptions, preview_wav
+from harptab.pipeline import load_melody, load_score, transcribe_audio
+from harptab.playback import PREVIEW_VOICES, PreviewOptions, preview_chords_wav, preview_wav
+from harptab.render.chords import render_chord_json, render_chord_practice, render_chord_text
 from harptab.render.json import render_json
 from harptab.render.practice import PracticeOptions, render_practice
 from harptab.render.text import render_text
@@ -32,9 +34,17 @@ def _harps(value: str) -> list[int]:
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Run ``harptab [arrange|transcribe] FILE``; errors return status 2 without a traceback."""
+    """Run arrangement, transcription or local listening; input errors return status 2."""
     arguments = list(sys.argv[1:] if argv is None else argv)
-    parser = argparse.ArgumentParser(prog="harptab", description="Arrange a melody for harmonica")
+    if arguments and arguments[0] == "listen":
+        from harptab.listener import listen_main
+
+        return listen_main(arguments[1:])
+    parser = argparse.ArgumentParser(
+        prog="harptab",
+        description="Arrange a melody for harmonica",
+        epilog="Live microphone practice: harptab listen arrangement.json [another.json]",
+    )
     command = "arrange"
     if arguments and arguments[0] in ("arrange", "transcribe"):
         command = arguments.pop(0)
@@ -45,11 +55,28 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--skill", choices=("beginner", "intermediate", "advanced"), default="intermediate"
     )
     parser.add_argument("--overblows", action="store_true", help="allow overblows and overdraws")
+    parser.add_argument(
+        "--chords",
+        action="store_true",
+        help="preserve and arrange simultaneous notes from JSON/MIDI/MusicXML",
+    )
+    parser.add_argument(
+        "--harmony-audio",
+        type=Path,
+        help="add harmony candidates to reviewed melody JSON using an isolated instrumental stem; "
+        "implies --chords and requires matching source timestamps",
+    )
     parser.add_argument("--format", choices=("text", "json", "practice"), default="text")
     parser.add_argument(
         "--practice-speed", type=float, default=0.75, help="practice speed in (0, 1]"
     )
-    parser.add_argument("--preview", type=Path, help="write reference-tone WAV at practice speed")
+    parser.add_argument("--preview", type=Path, help="write a practice WAV at the selected speed")
+    parser.add_argument(
+        "--preview-voice",
+        choices=PREVIEW_VOICES,
+        default="harmonica",
+        help="preview sound: recorded harmonica samples (default) or plain sine tone",
+    )
     parser.add_argument(
         "--alternatives", type=int, default=0, metavar="N", help="number of additional choices"
     )
@@ -81,6 +108,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         targets = [
             args.file,
+            *([args.harmony_audio] if args.harmony_audio else []),
             *([args.output] if args.output else []),
             *([args.preview] if args.preview else []),
         ]
@@ -91,7 +119,59 @@ def main(argv: Sequence[str] | None = None) -> int:
                 ):
                     raise ValueError("input, output and preview paths must be different")
         practice = PracticeOptions(speed=args.practice_speed)
-        preview_options = PreviewOptions(speed=args.practice_speed)
+        preview_options = PreviewOptions(speed=args.practice_speed, voice=args.preview_voice)
+        if args.chords or args.harmony_audio:
+            if command == "transcribe":
+                raise ValueError("chord mode arranges reviewed notes; transcribe a melody first")
+            if args.start != 0 or args.duration is not None:
+                raise ValueError("chord mode uses event timestamps; select an excerpt in the score")
+            if args.harmony_audio:
+                if args.file.suffix.lower() != ".json":
+                    raise ValueError("--harmony-audio requires reviewed melody JSON as the input")
+                from harptab.transcribe.harmony import harmonize
+                from harptab.transcribe.load import load_audio
+
+                reviewed = load_melody(args.file)
+                progress(
+                    "Checking harmony around reviewed notes; compare candidates with the source..."
+                )
+                score = harmonize(reviewed, load_audio(args.harmony_audio, 22050), 22050)
+            else:
+                score = load_score(args.file)
+            chord_choices = search_chords(
+                score,
+                mode=args.mode,
+                harps=args.harps,
+                skill=args.skill,
+                top_n=args.alternatives + 1,
+                overblows=args.overblows,
+            )
+            if not chord_choices:
+                raise ValueError("input contains no chord events")
+            chord_arrangement = chord_choices[0]
+            if args.format == "practice":
+                chord_output = render_chord_practice(
+                    score, chord_arrangement, options=practice, alternatives=chord_choices[1:]
+                )
+            elif args.format == "json":
+                chord_output = render_chord_json(
+                    score, chord_arrangement, alternatives=chord_choices[1:]
+                )
+            else:
+                chord_output = render_chord_text(
+                    score, chord_arrangement, alternatives=chord_choices[1:]
+                )
+            if args.preview:
+                preview_chords_wav(args.preview, score, chord_arrangement, options=preview_options)
+                progress(
+                    f"Wrote {args.preview_voice} chord preview at {args.practice_speed:.0%} speed: "
+                    f"{args.preview}"
+                )
+            if args.output:
+                args.output.write_text(chord_output, encoding="utf-8", newline="\n")
+            else:
+                sys.stdout.write(chord_output)
+            return 0
         if command == "transcribe" and args.format == "practice":
             raise ValueError(
                 "a practice guide requires arrangement; use 'harptab FILE --format practice'"
@@ -147,7 +227,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.preview:
             preview_wav(args.preview, melody, arrangement, options=preview_options)
             progress(
-                f"Wrote reference-tone preview at {args.practice_speed:.0%} speed: {args.preview}"
+                f"Wrote {args.preview_voice} preview at {args.practice_speed:.0%} speed: "
+                f"{args.preview}"
             )
         if args.output:
             args.output.write_text(output, encoding="utf-8", newline="\n")

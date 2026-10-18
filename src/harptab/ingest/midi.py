@@ -7,13 +7,27 @@ from typing import Any
 
 import mido
 
+from harptab.ingest.chords import chord_events
 from harptab.ingest.reduce import choose_track, skyline
-from harptab.models import KeyEstimate, Melody, NoteEvent
-from harptab.validation import validate_melody
+from harptab.models import ChordScore, KeyEstimate, Melody, NoteEvent
+from harptab.validation import validate_melody, validate_score
 
 
 def load_midi(path: str | Path) -> Melody:
     """Load a type 0/1 MIDI file, excluding percussion and reducing the selected track."""
+    result = _load_midi(path, chords=False)
+    assert isinstance(result, Melody)
+    return result
+
+
+def load_midi_score(path: str | Path) -> ChordScore:
+    """Preserve all simultaneous pitches across non-percussion MIDI tracks/channels."""
+    result = _load_midi(path, chords=True)
+    assert isinstance(result, ChordScore)
+    return result
+
+
+def _load_midi(path: str | Path, *, chords: bool) -> Melody | ChordScore:
     midi = mido.MidiFile(str(path))
     if midi.type == 2:
         raise ValueError("MIDI type 2 has independent timelines; export as type 0 or 1")
@@ -83,6 +97,16 @@ def load_midi(path: str | Path) -> Melody:
     last_tick = max(ends.values(), default=0)
     beats = [seconds(tick) for tick in range(0, last_tick + 1, midi.ticks_per_beat)]
     initial_tempo = tempos[bisect_right(tempo_ticks, 0) - 1]
+    if chords:
+        score = ChordScore(
+            chord_events([n for track in tracks.values() for n in track]),
+            60_000_000 / initial_tempo,
+            beats,
+            key_estimate,
+            str(path),
+        )
+        validate_score(score)
+        return score
     melody = Melody(skyline(chosen), 60_000_000 / initial_tempo, beats, key_estimate, str(path))
     validate_melody(melody)
     return melody

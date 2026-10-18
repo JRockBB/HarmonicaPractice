@@ -1,0 +1,85 @@
+{
+  "sample_rate": 22050,
+  "license": "CC0-1.0",
+  "regions": [
+    {
+      "root_pitch": 64,
+      "low": 0,
+      "high": 65,
+      "file": "64.wav",
+      "loop_start": 5837,
+      "loop_end": 21693,
+      "source_sha256": "6cdc64a60fba1fadacb03d2d691eecee5084b24fb7ab3787e9a3185483822a75",
+      "applied_tuning_cents": 0,
+      "wav_sha256": "5aa57c8ca5fe85c22b8084eaee781d62055872f567dbaf6dbbf962c58d52f5de"
+    },
+    {
+      "root_pitch": 67,
+      "low": 66,
+      "high": 69,
+      "file": "67.wav",
+      "loop_start": 28977,
+      "loop_end": 45964,
+      "source_sha256": "a5522832de1afdcae32c83edbf765165cb9574ae2c2f7446cc7a703bf4654fd1",
+      "applied_tuning_cents": -16,
+      "wav_sha256": "ef7cc68df026432bc90ee654b59f627e5fa94afb472532595dc0bc442e0f1187"
+    },
+    {
+      "root_pitch": 72,
+      "low": 70,
+      "high": 74,
+      "file": "72.wav",
+      "loop_start": 14096,
+      "loop_end": 19957,
+      "source_sha256": "db7d2c0495576108b8e41638b2909691901db792b65ca576ea57afd15bf63c1c",
+      "applied_tuning_cents": -19,
+      "wav_sha256": "26d3cdbecefa94f4148f1e6adba0ff669f2ed8409497b633f3dab1cdbc36fb0e"
+    },
+    {
+      "root_pitch": 76,
+      "low": 75,
+      "high": 77,
+      "file": "76.wav",
+      "loop_start": 23084,
+      "loop_end": 40383,
+      "source_sha256": "0fa8969bc0955bfdc009fdb07b881d792e01ec12295a23698dc0d68251d33a2d",
+      "applied_tuning_cents": -5,
+      "wav_sha256": "42ff749340bafc78bb33763503d6c2551b4af0cd49c0fca4bf31327b27cb6105"
+    },
+    {
+      "root_pitch": 79,
+      "low": 78,
+      "high": 83,
+      "file": "79.wav",
+      "loop_start": 32564,
+      "loop_end": 43274,
+      "source_sha256": "b6f59db2d55ca54cf6a4818e02a3275c98f382f162e4b7794ebac7ee315922fa",
+      "applied_tuning_cents": -14,
+      "wav_sha256": "06c5f00affec4c6139ebb1b96f30c0fb68d6164f41e673127c414f7879553613"
+    },
+    {
+      "root_pitch": 84,
+      "low": 84,
+      "high": 86,
+      "file": "84.wav",
+      "loop_start": 28521,
+      "loop_end": 38280,
+      "source_sha256": "6c7554f28c903c097a457a9fc45f7f0d45b3a49ecb96c9a068014825b9d0cbe1",
+      "applied_tuning_cents": -18,
+      "wav_sha256": "6fe20bd59205e793985c019da5abcb867cf37a5423f0296659700ce59427ae70"
+    },
+    {
+      "root_pitch": 88,
+      "low": 87,
+      "high": 127,
+      "file": "88.wav",
+      "loop_start": 40936,
+      "loop_end": 50027,
+      "source_sha256": "1f6d879885afdcc768da3df69f4d22b2c1f29468a4c3069e48cb7c6a1f90218e",
+      "applied_tuning_cents": -26,
+      "wav_sha256": "71e9215e2e9ba88228b586c300839c0246b217c4268371503e1a24d3c3ce4175"
+    }
+  ],
+  "repository": "https://github.com/michael02022/basic-harmonica",
+  "revision": "4b8d698a49db6cdb98be0ac5b4376519cf532994"
+}

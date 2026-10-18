@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from harptab.ingest.musicxml import load_musicxml
+from harptab.ingest.musicxml import load_musicxml, load_musicxml_score
 
 
 def test_missing_extra_is_actionable(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -36,3 +36,7 @@ def test_musicxml_pitch_chords_and_tempo(tmp_path: Path) -> None:
     assert [n.pitch for n in tune.notes] == [72, 76, 79]
     assert [n.start for n in tune.notes] == pytest.approx([0, 0.5, 1])
     assert [n.duration for n in tune.notes] == pytest.approx([0.5, 0.5, 1])
+    harmony = load_musicxml_score(path)
+    assert [e.pitches for e in harmony.events] == [(72,), (64, 76), (79,)]
+    assert [e.start for e in harmony.events] == pytest.approx([0, 0.5, 1])
+    assert [e.duration for e in harmony.events] == pytest.approx([0.5, 0.5, 1])

@@ -276,3 +276,247 @@ above pass. An additional synthesized backing-recording CLI run exports all 15 O
 to Joy tab tokens exactly, plus a valid mono practice WAV. Formatting, lint, strict
 typing, lockfile checks and source/wheel builds pass. Local soundfile decoding
 supports WAV, MP3 and FLAC; formats requiring ffmpeg still need that executable.
+
+## Recorded harmonica practice playback
+
+The Phase 4 playback follow-up uses seven actual harmonica recordings from the
+CC0 [basic-harmonica](https://github.com/michael02022/basic-harmonica) sample bank.
+The first generated reed preset was rejected in listening feedback; it has been
+replaced by recorded samples. `PreviewOptions.voice` and CLI `--preview-voice`
+select `harmonica` (default) or the existing `sine` reference tone.
+
+The packaged PCM16 WAVs preserve the author's key regions, tuning corrections and
+sustain-loop markers. A standard-library sampler uses windowed-sinc conversion
+with an anti-aliasing guard band to reach the requested pitch and sample rate.
+Long notes continue their sustain loops; releases stay inside each note, keeping
+rests and slowed timing exact. Blow/draw timbre differences and bend gestures
+are not modeled. The original public-domain dedication, pinned source revision,
+file hashes and conversion details accompany the assets.
+
+The change preserves shared music contracts and optional dependency boundaries.
+Playback has no runtime download or numerical-library requirement. Tests verify
+the recorded waveform survives playback, held notes sustain, both voices preserve
+pitch/transposition and silence, high harmonics are filtered before downsampling,
+short-note fades remain bounded, and CLI voice selection is reproducible.
+
+Local verification: 354 core tests, formatting, lint and strict typing pass. The
+wheel and source distribution build successfully; all seven WAV hashes and the
+CC0 dedication were checked inside the wheel. A direct import from that wheel
+renders held and transposed notes with Python's standard library alone. The
+confirmed private chorus and spoken-cue exercise were regenerated with the
+recorded voice, retaining their 22.8-second and 113.95-second durations.
+
+## Chord support and assisted harmony (2026-10-13)
+
+The user requested a fix for omitted harmonica chords. This authorizes the additive
+`ChordEvent`, `ChordScore`, `Voicing` and `ChordArrangement` contracts documented in
+ARCHITECTURE.md. Existing monophonic fields and behavior remain compatible. The
+pass coordinates WP0/WP1/WP2/WP3/WP5/WP6/WP9/WP10, because the limitation crossed
+input, physical assignment, rendering and playback boundaries.
+
+Chord assignment enumerates contiguous groups of 2-4 unbent holes on one breath,
+plus existing single-note techniques. Every voicing retains the designated melody
+pitch and contains only source-requested pitches. Search prioritizes playable
+melody, then technique/motion and harmony coverage. Unplayable accompaniment is
+reported explicitly; the tool does not silently fill intervening holes with wrong
+notes. Over-notes remain opt-in and are never treated as multi-hole chords.
+
+`--chords` preserves simultaneous JSON/MIDI/MusicXML notes and exports bracketed
+tabs, timed multi-hole instructions, structured chord JSON and simultaneous WAVs.
+Playback mixes real harmonica samples, balances voice count, limits the whole
+export's peak and preserves timing/rests at both speeds. The pure core remains
+independent of numerical/audio libraries.
+
+`--harmony-audio` adds persistent lower-pitch candidates around a reviewed melody
+using an aligned instrumental stem. It never inserts new events or extends tails.
+Mixed-recording harmony still needs review: spectral peaks are not proof of note
+identity, and chord detection can confuse overtones, bleed and backing layers.
+The user's private riff includes source-reviewed chord selections and two actual
+harp options; every retained lead pitch/time and every prior cleaned output is
+preserved. Those commercial-source artifacts remain under ignored `eval/local/`.
+
+Validation: 408 core tests and four synthesized harmony/audio-CLI tests pass.
+Checks cover reed feasibility across all 12 keys, mixed-breath/hole-gap rejection,
+melody retention, explicit omissions, JSON round trips, MIDI/MusicXML chord
+preservation, source-file protection, simultaneous frequencies, bounded amplitude,
+slowed pitch and silent rests. Strict mypy passes for 33 source files. Remaining
+scope includes reliable unattended polyphonic transcription, tongue-blocked splits,
+chord bends, independent legato voices and acoustic interactions between reeds.
+
+## Live practice listener (2026-10-13)
+
+The user requested an A playing guide and a live visual of performed versus target
+notes. The accepted private A/G guides are retained, and both existing arrangements
+can be loaded together with `harptab listen`. This coordinated Phase 4 feature owns
+the listener server, browser assets and tests, with small CLI/CI/documentation
+changes. It consumes existing contracts without changing their fields.
+
+The dependency-free Python adapter validates the reviewed arrangement and provides
+actual played pitches, omissions, source timestamps and hole/breath instructions.
+A fixed-route loopback HTTP server serves only its bundled UI and those sessions.
+The browser captures microphone audio locally, estimates pitches independently of
+the target, and displays expected/heard notes, tuning cents and a live pitch trail.
+Controls include A/G selection through the supplied files, 50/75/100% speed,
+wait-for-match or timed practice, rests, looping, manual steps and guide download.
+
+The 8192-sample spectral detector suppresses high harmonica overtones, rejects
+quiet/noisy frames and marks clipping. All chord targets must match within the
+selected tolerance. Wait mode needs a stable match and a quiet break between
+steps; timed mode uses a three-second count-in and source-relative timing.
+Permission denial, pending-request cancellation, stop, device loss and hiding the
+tab release microphone resources. No recorded audio leaves the browser.
+
+Validation: 418 Python tests and 15 Node listener tests pass. Signal tests cover
+49 pitches across three sample rates, chords/double stops, detuning, wrong octaves,
+noise, clipping and all seven packaged CC0 harmonica roots. A private playback
+check matched all 55 analyzed windows across the five A/G single-note and chord
+voicings used in the current exercise. UI-controller tests use browser API doubles
+to check controls, microphone cleanup and recovery. No browser automation surface
+was available for rendered visual QA; physical microphone/room accuracy remains
+unverified. Chords with octave reeds, missing fundamentals, uneven volume, backing
+tracks or reverberation remain challenging and are labeled estimates in the UI.
+
+### Live note display follow-up
+
+The first microphone trial revealed a note flashing for one frame and disappearing.
+The UI previously replaced its note/cents readout with a dash on every missing
+40 ms frame. `PitchDisplay` now smooths cents across three same-note frames and
+keeps the last detection visible for one second, explicitly labeled Last heard.
+Actual raw detections still drive practice scoring and the pitch trail; stale notes
+cannot earn a match or fill rests. The chart retains past detected pitches in its
+vertical range so a dropout no longer hides a pitch outside the target register.
+
+The default noise gate is reduced from -42 dB to -50 dB for quieter sustained input.
+A visible level/status readout distinguishes quiet input, unclear/noisy pitch and
+clipping. Capture Stop clears the held display. All 19 listener tests pass,
+including a microphone-API regression with a one-frame note followed by empty
+frames, live display before practice starts, no stale scoring, quiet-note detection,
+display expiry, chord/note changes and pitch-trail persistence. Shared music and
+scoring contracts are unchanged. Real microphone detection still needs checking
+against the user's input after refreshing the page.
+
+### Extra-note detection follow-up
+
+The next user trial reported extra notes. Synthesized harmonic-rich vibrato
+reproduced duplicate note names and false upper notes when partials moved outside
+the original 32-cent harmonic tolerance. A background tone at one tenth of the
+main reed's amplitude also appeared as a second note.
+
+The detector now consolidates peaks for the same note before harmonic rejection,
+preserves the strongest peak's unsnapped cents, and tolerates 60 cents of harmonic
+spread. After harmonic removal, an independent voice must reach 18% of the
+strongest remaining fundamental's amplitude. This relative voice floor removes
+faint background notes while retaining quiet standalone playing. No arrangement
+pitches are used by these filters, and audible incorrect extra notes still fail
+the match. Very uneven chords can lose their faintest reed; that remains a limit.
+
+All 22 listener tests pass, including 168 vibrato combinations across pitches,
+sample rates, depths and phases; faint interference; quieter standalone notes;
+uneven chords; and visible audible wrong notes. All 55 analyzed windows of the
+recorded A/G single notes and chord voicings still match. The live server serves
+the updated detector on refresh. Shared music/scoring contracts are unchanged;
+microphone accuracy for the user's particular room still requires their trial.
+
+### Specific Ab4 report and diagnostic readout
+
+The user still reported Ab4. The A-harp reed model identifies MIDI 68 (Ab4/G#4)
+as hole 3 draw, so removing that pitch from detection would hide a possible real
+neighbouring reed. Without the user's signal there is insufficient evidence to
+decide whether this is bleed, background sound or a false peak.
+
+The listener now displays Hz, relative amplitude and possible fingerings generated
+by `HarmonicaModel`, and can explicitly export six seconds of live note measurements
+as a local JSON download. It does not record or upload audio. This gives the next
+diagnostic pass actual microphone evidence rather than another speculative filter.
+Tests verify A-harp Ab4/F#5 fingerings, genuine Ab4 alone/with the draw chord,
+visible measured Hz, and measurements-only export. All 24 listener tests pass.
+Shared music/scoring contracts remain unchanged. The specific user-reported Ab4
+cause remains unconfirmed until a trial or diagnostic sample is available.
+
+### Start practice flow
+
+The user reported that Start practice was not useful. The previous default waited
+indefinitely for a strict chord match, and manual Next reset the session and stopped
+it. Start practice now acquires the microphone and begins a visible three-second
+count-in in one click. Follow along is the default: the source timing continues
+through missed or extra notes while only correct matches receive credit. Step by
+step remains available for untimed practice.
+
+The transport sits above the note comparison. A forward-looking pitch timeline,
+moving position line, upcoming tab, phrase progress and Play/Rest/Release cues make
+the next action visible. Manual skips and step selection preserve running state
+and earned matches. Restart clears progress and counts in again when running;
+looping repeats with a count-in. Microphone denial and cancellation leave the
+practice clock stopped. These changes are confined to listener assets, tests and
+documentation; shared music contracts and the pitch detector are unchanged.
+
+Validation: all 30 Node listener tests and 418 Python tests pass (64 audio tests
+deselected). Formatting, lint, type checking and wheel/source builds pass. The
+running loopback server serves the updated UI, engine and A/G sessions with no-store
+headers. Tests cover one-click acquisition, visible count-in/rests, extra-Ab4 input
+without stalled timing or false match credit, running skips, pause/resume, restart,
+looping and canceled/denied acquisition. UI tests use browser API doubles; an actual
+browser surface and the user's physical microphone were unavailable for this pass.
+
+### Practice results and arrangement-driven hole lights
+
+The user requested a way to assess each run and a harmonica with light-up holes,
+then clarified that the instrumental is the first of multiple songs to practice.
+The listener consumes each loaded arrangement's actions and source name. No song
+sequence is embedded in the application. The private instrumental remains the
+first loaded exercise, with its existing A and G voicings unchanged.
+
+`load_session` now includes hole, technique, bend depth and pitch for each chosen
+action and derives a display title from the source basename. The browser renders
+ten holes, lights simultaneous chord holes, labels breath direction and advanced
+techniques, and clears the lights during rests, release and completion. Selecting
+another arrangement updates the title, notes and diagram together.
+
+`PracticeEngine.report()` supplies live and completed matched/missed/skipped
+counts, a percentage of playable steps with sustained matches, and per-step
+observations. Unavailable notes are excluded, skips earn no credit, and long gaps
+between observations cannot prove a sustained match. The completed report explains
+brief matches, tuning, extra/missing notes, quiet/unclear input and clipping. It
+remains visible across replay/loop, labels simulated results, and offers step retry
+controls. Changing songs clears the previous report. Rhythm and tone grading are
+explicitly outside this pitch-match score.
+
+Validation: 35 Node tests and 430 Python tests pass (64 audio tests deselected).
+Coverage includes every technique in all 12 harp keys, transposed exercises,
+multi-hole lights, song switching, score exclusions, per-step reasons and result
+retention. Format, lint, type-check and wheel/source builds pass. The running local
+server was restarted and its actual A/G session payloads and new UI assets verified.
+Browser-controller tests use API doubles; physical microphone accuracy and rendered
+browser appearance remain unverified. Changes stay within the listener work package
+and coordinated documentation; shared music contracts are unchanged.
+
+### Recorded take review (2026-10-14)
+
+The user clarified that scores alone were insufficient: they need to review what
+they actually played. Practice now records actual microphone audio locally and
+retains the full raw detected-note timeline, independently of the live six-second
+trail. `TakeRecorder` owns each take's final audio chunks, metadata and observations;
+`TakeReview` provides replay, scrubbing, target/heard readouts, step jumps, audio and
+notes downloads, selection of earlier takes and explicit deletion. Loops keep
+separate takes. Pause, early finish, restart, configuration changes and input loss
+save partial takes. Song changes retain the take library. Starting only the mic
+and running the simulated demo do not record audio.
+
+Completed audio is decoded locally to seekable PCM WAV where supported, preserving
+recorded samples; failures retain the browser's original format with a notice.
+Playback stops microphone capture to prevent scoring the replay. Takes persist in
+the current tab only, with download as the explicit way to retain them after reload.
+The UI and docs now describe recording accurately. Earlier audio was never captured
+and cannot be reconstructed. The loopback server remains read-only; its asset list
+adds the two JS modules, and CSP permits local Blob audio playback.
+
+Validation: all 43 Node tests and 430 Python tests pass (64 audio tests deselected).
+Tests cover final audio chunks, independent loop callbacks, full-history retention,
+recording failures, playback stopping capture, seeking actual versus expected notes,
+downloads, cross-song retention, partial takes and WAV sample/header correctness.
+Format, lint and type checks pass; wheel/source builds and the running server's new
+routes, media policy and private A/G session payloads were verified. Native browser
+automation returned a missing native-pipe error and the browser inventory was empty,
+so physical microphone recording/playback and visual browser QA remain unverified.
+No shared music-contract changes were needed; recording is an explicit expansion
+of the listener behavior requested by the user.

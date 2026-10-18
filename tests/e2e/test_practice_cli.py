@@ -5,7 +5,8 @@ from pathlib import Path
 import pytest
 
 from harptab.cli import main
-from harptab.models import Melody
+from harptab.models import Melody, NoteEvent
+from harptab.playback import PreviewOptions, preview_wav
 
 
 def test_every_fixture_generates_instructions_and_preview(
@@ -43,7 +44,7 @@ def test_every_fixture_generates_instructions_and_preview(
         assert audio.getnframes() == round(span * 22050 / 0.5)
     captured = capsys.readouterr()
     assert not captured.out
-    assert "Wrote reference-tone preview" in captured.err
+    assert "Wrote harmonica preview" in captured.err
 
 
 @pytest.mark.parametrize("target", ["output", "preview", "same_targets"])
@@ -75,3 +76,16 @@ def test_invalid_practice_speed_and_command_fail(tmp_path: Path) -> None:
     source = tmp_path / "not-read.wav"
     assert main([str(source), "--practice-speed", "0"]) == 2
     assert main(["transcribe", str(source), "--format", "practice"]) == 2
+
+
+def test_cli_can_select_plain_sine_preview(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    source = tmp_path / "song.json"
+    source.write_text('{"notes":[{"pitch":72,"start":0,"duration":0.1}]}')
+    preview = tmp_path / "sine.wav"
+    assert main([str(source), "--preview", str(preview), "--preview-voice", "sine"]) == 0
+    assert "Wrote sine preview" in capsys.readouterr().err
+    reference = tmp_path / "reference.wav"
+    preview_wav(reference, Melody([NoteEvent(72, 0, 0.1)]), options=PreviewOptions(voice="sine"))
+    assert preview.read_bytes() == reference.read_bytes()

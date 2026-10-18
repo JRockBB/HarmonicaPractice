@@ -6,12 +6,12 @@ from dataclasses import replace
 from math import isfinite
 from pathlib import Path
 
-from harptab.models import Melody
+from harptab.models import ChordScore, Melody
 from harptab.transcribe.crepe import CrepeParams
 from harptab.transcribe.pitch import PyinParams, get_tracker
 from harptab.transcribe.segment import SegmentParams, segment
 from harptab.transcribe.separate import SeparationParams
-from harptab.validation import validate_melody
+from harptab.validation import validate_melody, validate_score
 
 AUDIO_SUFFIXES = frozenset((".wav", ".mp3", ".flac", ".m4a", ".ogg", ".aiff"))
 
@@ -145,6 +145,8 @@ def load_melody(
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError("melody JSON must contain an object")
+    if "score" in data or "events" in data:
+        raise ValueError("chord-score input requires --chords (or load_score in the library)")
     try:
         # Rendered JSON can be fed back to the arranger as well as standalone Melody JSON.
         melody = Melody.from_dict(data.get("melody", data))
@@ -152,3 +154,39 @@ def load_melody(
     except (TypeError, KeyError, AttributeError) as error:
         raise ValueError(f"invalid melody JSON: {error}") from error
     return melody
+
+
+def load_score(path: str | Path) -> ChordScore:
+    """Load chord-score/arrangement JSON, melody JSON, MIDI or optional MusicXML."""
+    from harptab.ingest.chords import score_from_melody
+
+    path = Path(path)
+    if not path.is_file():
+        raise FileNotFoundError(f"input file does not exist: {path}")
+    suffix = path.suffix.lower()
+    if suffix in (".mid", ".midi"):
+        from harptab.ingest.midi import load_midi_score
+
+        return load_midi_score(path)
+    if suffix in (".xml", ".musicxml", ".mxl"):
+        from harptab.ingest.musicxml import load_musicxml_score
+
+        return load_musicxml_score(path)
+    if suffix != ".json":
+        raise ValueError(
+            "chords require MIDI, MusicXML or reviewed melody/score JSON; "
+            "use --harmony-audio STEM.wav to analyze harmony around reviewed notes"
+        )
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("chord-score JSON must contain an object")
+    try:
+        payload = data.get("score", data)
+        if "events" in payload:
+            score = ChordScore.from_dict(payload)
+        else:
+            score = score_from_melody(Melody.from_dict(data.get("melody", data)))
+        validate_score(score)
+    except (TypeError, KeyError, AttributeError) as error:
+        raise ValueError(f"invalid chord-score JSON: {error}") from error
+    return score

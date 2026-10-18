@@ -2,7 +2,7 @@
 
 from math import isfinite
 
-from harptab.models import Melody
+from harptab.models import ChordArrangement, ChordScore, Melody, NoteEvent, Technique, Voicing
 
 
 def validate_key(key: int) -> None:
@@ -53,3 +53,69 @@ def validate_melody(melody: Melody) -> None:
             raise ValueError("key confidence must be in 0..1")
     if not isinstance(melody.source, str):
         raise ValueError("source must be a string")
+
+
+def validate_score(score: ChordScore) -> None:
+    """Validate pitches and preserve the melody's timing and metadata rules."""
+    for event in score.events:
+        if not event.pitches or any(type(p) is not int or not 0 <= p <= 127 for p in event.pitches):
+            raise ValueError("chord pitches must be nonempty integer MIDI pitches in 0..127")
+        if tuple(sorted(set(event.pitches))) != event.pitches:
+            raise ValueError("chord pitches must be unique and sorted")
+        if event.melody_pitch is not None and (
+            type(event.melody_pitch) is not int or event.melody_pitch not in event.pitches
+        ):
+            raise ValueError("melody_pitch must be one of the chord pitches")
+    validate_melody(
+        Melody(
+            [NoteEvent(e.lead, e.start, e.duration, e.confidence) for e in score.events],
+            score.tempo_bpm,
+            score.beats,
+            score.key_estimate,
+            score.source,
+        )
+    )
+
+
+def validate_voicing(voicing: Voicing, harp_key: int) -> None:
+    """Reject invented reeds, mixed breaths, hole gaps and multi-hole bends."""
+    from harptab.core.instrument import HarmonicaModel
+
+    harp = HarmonicaModel(harp_key)
+    actions = voicing.actions
+    if not actions:
+        raise ValueError("a voicing must contain at least one action")
+    for action in actions:
+        if any(
+            type(value) is not int for value in (action.hole, action.pitch, action.bend_semitones)
+        ):
+            raise ValueError("voicing hole, pitch and bend must be integers")
+        if action not in harp.actions_for_pitch(action.pitch):
+            raise ValueError("voicing action does not produce that pitch on this harp")
+    if len(actions) == 1:
+        return
+    holes = [a.hole for a in actions]
+    if len(actions) > 4 or holes != list(range(holes[0], holes[0] + len(holes))):
+        raise ValueError("block chords require 2-4 contiguous holes in ascending order")
+    if actions[0].technique not in (Technique.BLOW, Technique.DRAW) or any(
+        a.technique != actions[0].technique for a in actions
+    ):
+        raise ValueError("block chords require unbent notes with the same breath direction")
+
+
+def validate_chord_arrangement(score: ChordScore, arrangement: ChordArrangement) -> None:
+    """Validate a playable reduction; missing harmony remains explicit in the score."""
+    validate_score(score)
+    validate_key(arrangement.harp_key)
+    if type(arrangement.transpose) is not int:
+        raise ValueError("transpose must be an integer number of semitones")
+    if len(score.events) != len(arrangement.voicings):
+        raise ValueError("arrangement must have one voicing per chord event")
+    for event, voicing in zip(score.events, arrangement.voicings, strict=True):
+        if voicing is None:
+            continue
+        validate_voicing(voicing, arrangement.harp_key)
+        played = {a.pitch for a in voicing.actions}
+        requested = {p + arrangement.transpose for p in event.pitches}
+        if not played <= requested or event.lead + arrangement.transpose not in played:
+            raise ValueError("voicing must retain the melody and use only requested pitches")

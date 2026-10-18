@@ -89,3 +89,97 @@ class Arrangement:
             for action in fields["actions"]
         ]
         return cls(**fields)
+
+
+@dataclass(frozen=True)
+class ChordEvent:
+    """Simultaneous target pitches; melody_pitch must survive a reduced voicing.
+
+    None selects the highest pitch as the melody. Times are source seconds.
+    """
+
+    pitches: tuple[int, ...]
+    start: float
+    duration: float
+    confidence: float = 1.0
+    melody_pitch: int | None = None
+
+    @property
+    def lead(self) -> int:
+        return max(self.pitches) if self.melody_pitch is None else self.melody_pitch
+
+
+@dataclass
+class ChordScore:
+    """Sorted, non-overlapping chord events, including single-note events."""
+
+    events: list[ChordEvent]
+    tempo_bpm: float | None = None
+    beats: list[float] | None = None
+    key_estimate: KeyEstimate | None = None
+    source: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        result = asdict(self)
+        for event in result["events"]:
+            event["pitches"] = list(event["pitches"])
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ChordScore":
+        fields = dict(data)
+        fields["events"] = [
+            ChordEvent(**{**event, "pitches": tuple(event["pitches"])})
+            for event in fields["events"]
+        ]
+        if fields.get("key_estimate") is not None:
+            fields["key_estimate"] = KeyEstimate(**fields["key_estimate"])
+        return cls(**fields)
+
+
+@dataclass(frozen=True)
+class Voicing:
+    """One single-hole action or a contiguous group of unbent, same-breath holes."""
+
+    actions: tuple[Action, ...]
+
+
+@dataclass(frozen=True)
+class ChordArrangement:
+    harp_key: int
+    position: int
+    transpose: int
+    voicings: list[Voicing | None]
+    cost: float
+    stats: dict[str, int]
+
+    def to_dict(self) -> dict[str, Any]:
+        result = asdict(self)
+        result["voicings"] = [
+            None
+            if voicing is None
+            else {
+                "actions": [
+                    {**asdict(action), "technique": action.technique.value}
+                    for action in voicing.actions
+                ]
+            }
+            for voicing in self.voicings
+        ]
+        return result
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "ChordArrangement":
+        fields = dict(data)
+        fields["voicings"] = [
+            None
+            if voicing is None
+            else Voicing(
+                tuple(
+                    Action(**{**action, "technique": Technique(action["technique"])})
+                    for action in voicing["actions"]
+                )
+            )
+            for voicing in fields["voicings"]
+        ]
+        return cls(**fields)

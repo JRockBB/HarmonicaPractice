@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HarpTab · Live practice</title>
+  <link rel="stylesheet" href="/style.css">
+  <script type="module" src="/app.mjs"></script>
+</head>
+<body>
+  <main>
+    <header><div><span class="eyebrow">HARPTAB / PRACTICE ROOM</span><h1 id="current-song">Your practice</h1><p>Follow the lit holes. See what you played.</p></div><span id="input-state" class="badge">Microphone off</span></header>
+    <section class="setup" aria-label="Practice setup">
+      <label>Arrangement<select id="session"></select></label>
+      <label>Practice mode<select id="mode"><option value="timed">Follow along</option><option value="wait">Step by step</option></select></label>
+      <label>Speed<select id="speed"><option value="0.5">50% · slow</option><option value="0.75">75%</option><option value="1">100% · original</option></select></label>
+      <button id="guide" class="quiet">Save guide · 50% speed</button>
+    </section>
+    <div id="song-info" class="subtle"></div>
+    <section class="transport" aria-label="Practice controls">
+      <button id="play" class="primary" disabled>Start practice</button><button id="finish-review" disabled>Finish &amp; review</button><button id="microphone">Start microphone</button><button id="restart">Restart</button><button id="previous" aria-label="Previous note">← Previous</button><button id="next" aria-label="Next note">Next / skip →</button><label class="loop"><input id="loop" type="checkbox"> Loop</label><button id="demo" class="quiet">Try visual demo</button>
+    </section>
+    <p id="recording-state" class="subtle">Start practice records your microphone locally so you can listen back. Starting only the microphone does not record.</p>
+    <section class="practice-panel" aria-label="Practice progress">
+      <div class="practice-heading"><strong id="practice-cue">Ready</strong><span id="practice-help">A three-second count-in, then follow the notes. Misses won’t stop the phrase.</span></div>
+      <progress id="phrase-progress" max="1" value="0" aria-label="Progress through phrase"></progress>
+      <div class="practice-heading"><span id="time-left">Ready to start</span><span id="up-next"></span></div>
+      <canvas id="timeline" width="1000" height="130" aria-label="Upcoming notes and current play position"></canvas>
+      <div class="score-strip"><strong id="live-score">0 steps matched</strong><span id="live-misses">0 missed · 0 skipped</span><span>✓ Matched &nbsp; × Missed &nbsp; ↷ Skipped</span></div>
+    </section>
+    <p id="status" role="status" aria-live="polite">Loading your arrangement…</p>
+    <details id="take-panel" class="take-panel" open>
+      <summary>Review what you played <span class="subtle">· Your microphone recording and full note timeline</span></summary>
+      <div class="take-controls"><label>Your takes<select id="take-select" disabled><option>No takes yet</option></select></label><button id="play-take" class="primary" disabled>▶ Listen to my take</button><button id="download-take" disabled>Download audio</button><button id="download-take-notes" disabled>Download notes</button><button id="delete-take" class="quiet" disabled>Delete take</button></div>
+      <p id="take-message">Play a phrase, then use Finish &amp; review or let it finish. Pausing also saves a take.</p>
+      <audio id="take-audio" controls preload="metadata" hidden></audio>
+      <div id="take-detail" hidden>
+        <div class="take-controls"><label>Jump to step<select id="take-step"></select></label><output id="take-time"></output></div>
+        <div class="legend"><span class="expected">━ Target notes</span><span class="detected">● Notes you played</span><span>Click the chart or drag to review</span></div>
+        <canvas id="take-chart" width="1000" height="240" aria-label="Full recorded take showing expected and detected notes"></canvas>
+        <input id="take-seek" type="range" min="0" max="1" value="0" step="0.01" aria-label="Seek through your recorded take">
+        <div class="take-readout"><p><strong>Target at this point</strong><span id="take-expected"></span></p><p><strong>You played</strong><span id="take-heard"></span></p></div>
+      </div>
+      <p class="subtle">Takes stay in this tab, including across loops and song changes. Download anything you want to keep before closing or reloading. Playing a take stops the microphone. Nothing is uploaded.</p>
+    </details>
+    <section id="results" class="results" aria-label="Practice results" hidden>
+      <div class="result-heading"><div><h2 id="result-title">Your last run</h2><p id="result-context" class="subtle"></p></div><strong id="result-score"></strong></div>
+      <p id="result-summary"></p><p id="result-advice"></p>
+      <p class="subtle">Score = playable steps with a sustained pitch match. It reflects what the listener detected; it does not grade rhythm or tone. Skipped steps earn no credit.</p>
+      <details id="result-review" open><summary>Step-by-step review · select a tab to retry</summary><div id="result-steps"></div></details>
+    </section>
+    <section class="comparison" aria-label="Live note comparison">
+      <article class="card target"><div class="card-label">PLAY THIS <span id="event-number"></span></div><h2 id="target-note">Loading…</h2><div id="target-tab" class="tab"></div><p id="instruction"></p><p id="omitted" class="small"></p>
+        <div class="harmonica"><div id="harp-key" class="subtle">HOLES TO PLAY</div><div id="harp-direction"></div><div id="harp-holes" role="img" aria-label="Harmonica holes"></div><div class="harp-ends"><span>Low notes · 1</span><span>10 · High notes</span></div></div>
+      </article>
+      <article class="card heard"><div class="card-label"><span id="heard-label">YOU ARE PLAYING</span><span id="signal-quality"></span></div><h2 id="heard-note">—</h2><p id="feedback">Start the microphone, then play a note.</p><div class="tuner"><span>Flat</span><canvas id="tuner" width="400" height="40" aria-label="Pitch offset from the target"></canvas><span>Sharp</span></div><p id="cents" class="small">Pitch feedback appears here.</p><div class="input-level"><span>Input</span><meter id="level" min="0" max="0.2" value="0" aria-label="Microphone level"></meter></div><p id="input-detail" class="small">Microphone off</p></article>
+    </section>
+    <details class="note-details"><summary>Detected-note details</summary><p id="heard-details"></p><p class="small">Possible fingerings on the selected harp, not proof of which holes you used. Ab and G# are the same pitch. Relative level compares detected notes with each other.</p><button id="diagnostics" class="quiet">Save note diagnostics</button><span class="subtle"> Last six seconds of pitch measurements only; no audio.</span></details>
+    <section class="trace-panel"><div class="trace-title"><h2>Live pitch trail</h2><div class="legend"><span class="expected">━ Target</span><span class="detected">● Heard</span><span>Last 6 seconds</span></div></div><canvas id="trace" width="1000" height="240" aria-label="Pitch history showing target notes and detected notes"></canvas></section>
+    <section class="sequence-panel"><div class="trace-title"><h2>Your phrase</h2><span class="subtle">Select a step to practice it</span></div><div id="sequence" class="sequence"></div></section>
+    <details><summary>Listening settings & tips</summary><div class="settings"><label>Noise gate <output id="gate-value">−50 dB</output><input id="gate" type="range" min="-60" max="-20" value="-50" step="1"></label><label>Pitch tolerance <output id="tolerance-value">±35 cents</output><input id="tolerance" type="range" min="15" max="50" value="35" step="5"></label><label>Microphone<select id="device"><option value="">System default</option></select></label></div>
+      <p>Play near the microphone in a quiet room. Use headphones if you play a backing track. If quiet notes disappear, lower the noise gate. If the input clips, move farther away.</p>
+      <p>The display keeps the last clear note visible for one second through brief dropouts, labeled Last heard. Those retained readings do not count toward a match. Live detections remain on the pitch trail for six seconds.</p>
+      <p>Chords are estimates: all listed pitches must be detected to match. Strong overtones, octave chords, breath noise and room echoes can confuse the listener. It hears pitch, not your hole or breath technique. Use Next if a chord won’t lock.</p>
+      <p>Follow along counts you in, then moves through the phrase even when a note doesn’t match. Watch the moving line, upcoming notes and Hold/Rest cues. Step by step waits for a match and a brief breath break. Next skips a step without stopping practice. Speed changes timing, not pitch.</p>
+    </details>
+    <footer>Practice audio and note history are kept locally in this tab for review. Files are downloaded only when you choose. Nothing is uploaded.</footer>
+  </main>
+</body>
+</html>

@@ -20,7 +20,9 @@ Stages 1–4 are **transcription**: audio in, melody out. They are heavy (ML mod
 
 Stages 5–7 are **arrangement**: melody in, tab out. They are pure Python, deterministic, fast, and fully unit-testable.
 
-The two halves meet at one data type, `Melody`. Keeping them separated is the most important rule in the codebase: the arrangement core must never import audio libraries.
+The original single-note path meets at `Melody`. The optional harmony path meets at
+`ChordScore`, with simultaneous pitches in each event. Both are dependency-free.
+The arrangement core must never import audio libraries.
 
 ## Package layout
 
@@ -47,8 +49,12 @@ src/harptab/
     text.py            # stage 7: plain-text tab
     json.py            # machine-readable output
     practice.py        # timed Markdown practice instructions
-  playback.py          # standard-library reference-tone WAV export
+  playback.py          # standard-library harmonica/sine WAV export
+  playback_samples.py  # standard-library sampler for bundled CC0 harmonica recordings
+  assets/harmonica/    # recorded notes, sustain/tuning metadata and public-domain dedication
   cli.py               # `harptab` command
+  listener.py          # loopback-only live-practice server and arrangement adapter
+  assets/listener/     # browser microphone, pitch detector, progression and visual feedback
 tests/
   core/ transcribe/ ingest/ render/ e2e/
   fixtures/            # hand-written melodies, synthesized audio, NO commercial recordings
@@ -119,6 +125,83 @@ class Arrangement:
 
 ## Stage notes
 
+### Chord contract extension (2026-10-13)
+
+The user's request to fix missing chord support authorizes an additive contract
+extension. Existing `NoteEvent`, `Melody`, `Action` and `Arrangement` fields and JSON
+remain unchanged. A chord score is explicit; monophonic input is not automatically
+reharmonized. All consumers of the new types are implemented together.
+
+```python
+@dataclass(frozen=True)
+class ChordEvent:
+    pitches: tuple[int, ...]  # sorted, unique simultaneous MIDI pitches
+    start: float
+    duration: float
+    confidence: float = 1.0
+    melody_pitch: int | None = None  # None means highest pitch; otherwise must be in pitches
+
+
+@dataclass
+class ChordScore:
+    events: list[ChordEvent]  # sorted, non-overlapping; individual events can contain one note
+    tempo_bpm: float | None = None
+    beats: list[float] | None = None
+    key_estimate: KeyEstimate | None = None
+    source: str = ""
+
+
+@dataclass(frozen=True)
+class Voicing:
+    actions: tuple[Action, ...]  # one action, or 2-4 adjacent unbent same-breath holes
+
+
+@dataclass(frozen=True)
+class ChordArrangement:
+    harp_key: int
+    position: int
+    transpose: int
+    voicings: list[Voicing | None]  # one per event; None means the melody cannot be played
+    cost: float
+    stats: dict[str, int]
+```
+
+`ChordScore` and `ChordArrangement` round-trip through JSON. Event `pitches` and
+voicing `actions` are arrays; rendered JSON uses `score`, `arrangement`, `alternatives`.
+`validate_score` validates every pitch and retains the melody timeline rules.
+`validate_chord_arrangement` rejects false reeds, mixed-breath chords, hole gaps,
+multi-hole bends, added pitches, and missing designated melody notes.
+
+`core/chords.py` enumerates source-supported block voicings and assigns a path with
+Viterbi. Single-note fallback retains the melody. Missing harmony is penalized and
+reported as `omitted_tones` and `incomplete_chords`; it never becomes a wrong chord
+or a transposed substitute. Search prioritizes melody coverage, then cost. Default
+play-along still uses zero transposition. Split/tongue-blocked voicings are deferred.
+
+`ingest/chords.py` groups active pitches at symbolic note boundaries. Chord-mode
+MIDI preserves all non-percussion tracks/channels; MusicXML preserves pitched parts.
+Voice changes become block events, so previews rearticulate when a voicing changes;
+independent legato voices are not modeled. The default skyline melody path is retained.
+
+`transcribe/harmony.py` optionally adds lower harmony candidates around a reviewed
+melody using persistent spectral peaks in a full-length, aligned instrumental stem.
+It does not add events, extend durations, or infer the song's harmony from the harp.
+Overtones, backing layers, bleed and decays remain ambiguous; this is an assisted,
+reviewable step, not unattended polyphonic transcription. It inherits the melody's
+confidence; that field is not a calibrated estimate of chord correctness.
+
+`render/chords.py` adds bracketed simultaneous tabs, breath instructions, scaled
+timing/rests and explicit omissions. `preview_chords_wav` mixes only assigned reeds
+with recorded samples or sine references, preserving speed-independent pitch and
+silent gaps. Equal-power voice balancing and a global peak limit avoid clipping.
+It models simultaneous notes, not acoustic reed interaction. Arrangement, rendering,
+and playback remain usable without numerical/audio extras.
+
+CLI `--chords` accepts score JSON, melody JSON, MIDI or MusicXML. `--harmony-audio`
+implies chord mode and requires reviewed melody JSON plus an audio stem covering
+the original source timestamps. Raw audio can first use the existing transcription
+and review workflow. Input, harmony source, output and preview cannot alias.
+
 ### 1. Load
 Decode with `librosa.load` (ffmpeg via `audioread`/`soundfile`), mono, 22.05 kHz or 16 kHz depending on the pitch backend. Clear error if ffmpeg is missing.
 
@@ -180,9 +263,15 @@ JSON output is the `Arrangement` plus the `Melody`, for front ends.
 
 Practice output adds explicit hole, breath and bend instructions, short phrases,
 source timestamps, slowed hold/rest durations and confidence-review markers.
-It preserves unplayable gaps and labels transpositions. Reference-tone WAV export
+It preserves unplayable gaps and labels transpositions. Practice WAV export
 uses the existing note times and arranged pitches, without audio dependencies.
-It is a checking/practice aid, not a harmonica sound model or a beat-grid estimate.
+The default harmonica voice plays bundled CC0 instrument recordings. Original
+key regions and tuning corrections select the source sample; windowed-sinc
+resampling sets the target pitch and sample rate. Embedded sustain-loop markers
+extend held notes, and releases stay inside the note boundaries. A sine reference
+voice remains selectable. Neither voice changes the tab's target pitches or rest
+timing; the preview does not estimate a beat grid or model a player's bending
+gesture. Sample caches belong to one export, and playback never downloads assets.
 
 ## Difficulty model (`difficulty.py`)
 
@@ -201,6 +290,112 @@ One table, used by both search and assignment, so tuning it changes behavior con
 | Hole jump | 0.3 per hole beyond 1 |
 
 Expose a `--skill beginner|intermediate|advanced` flag that swaps cost tables (a beginner table makes bends expensive).
+
+## Live practice listener
+
+`harptab listen arrangement.json [another.json]` serves a local browser application
+on IPv4 loopback. It accepts existing rendered melody or chord arrangements and
+validates their reeds before creating display targets. Targets use the arrangement's
+actual sounding pitches, including its transposition and omitted harmony. Original
+source seconds are retained; the practice clock begins at the first event. Shared
+music contracts are unchanged. This user-authorized Phase 4 pass coordinates WP9,
+WP10, packaging and CI.
+
+Microphone acquisition uses browser `getUserMedia`; capture begins only on a user
+action. Starting practice also records that take locally for user-requested review.
+Audio is never sent to the server or monitored live to speakers; starting the
+microphone alone does not record. Playback of a saved take stops microphone capture.
+The server exposes only bundled static files and the selected sessions, with no
+directory browsing or write/upload route. It rejects non-loopback Host headers.
+Microphone tracks close on Stop, navigation, hidden tabs, and canceled requests,
+including requests that finish after cancellation.
+
+The browser detector analyzes 8192-sample Hann-windowed frames, using an FFT,
+interpolated spectral peaks, a configurable noise gate, tonal-energy rejection and
+harmonic suppression. Detection is independent of the target. It estimates up to
+four pitches; matching requires all arranged pitches within the cents tolerance
+and no extra detected pitches. Clipping prevents match credit. Chord estimates
+cannot reliably distinguish octave reeds from overtones, missing fundamentals,
+backing audio, room echoes or unevenly voiced chords. This is practice feedback,
+not proof of correct embouchure, hole selection or breath technique.
+
+Vibrato peaks belonging to the same MIDI note are consolidated before harmonic
+rejection, retaining the strongest peak's measured frequency/cents. Harmonic
+rejection allows 60 cents of spectral spread. An independent voice must reach
+18% of the strongest remaining fundamental's amplitude; this floor is applied
+after harmonic removal so a reed with a strong overtone still keeps its quieter
+fundamental. These target-independent filters reduce duplicate notes, moving
+overtones and faint background pitches. They can miss a very quiet chord reed;
+audible wrong notes above the floor still appear and prevent a match.
+
+The note/cents display takes a three-frame median for the same detected note set
+and retains the last reading for up to one second through missing frames. Retained
+readings are explicitly labeled `Last heard`; live detections alone drive scoring
+and the six-second pitch trail. The chart keeps historical pitches in its vertical
+range after detection drops. The default noise gate is -50 dB, and the input readout
+distinguishes quiet input, unclear pitch and clipping. Stopping capture clears the
+retained display immediately.
+
+Detected-note details show measured Hz, relative spectral amplitude and possible
+fingerings derived from `HarmonicaModel` for the selected harp. These describe
+ways to play a pitch, not proof of which reeds produced a microphone measurement.
+An explicit Save note diagnostics button downloads the last six seconds of
+note/frequency/cents/amplitude, input RMS and expected-pitch measurements as JSON.
+It exports no audio and sends nothing to the server. This supports diagnosis of
+real-room errors without blacklisting a particular note or changing the target.
+
+Start practice acquires the microphone and begins the session in one action.
+The default Follow along mode uses a monotonic clock, visible three-second count-in,
+source durations/rests and selected speed. Detection errors never block its clock;
+matches alone receive credit. A forward-looking note timeline, upcoming tab,
+hold/rest countdown and phrase progress make the timing visible. Step by step mode
+requires a stable match and a short quiet breath break before the next step,
+protecting repeated notes from advancing on one sustained sound. Manual selection
+and Previous/Next preserve running state and earned matches; Restart clears them.
+Unplayable events stay visible; they require manual skipping in step-by-step mode.
+The listener's presentation payload includes the selected voicing's hole, technique,
+bend depth and pitch for each action. A ten-hole diagram renders these actions
+directly, including simultaneous chords and explicit advanced techniques, and goes
+dark during rests, breath breaks and completion. It does not infer target holes
+from microphone pitches. Session titles use the source basename with the arrangement
+filename as fallback. The shared arrangement schemas are unchanged.
+
+Per-step observations record match counts, dominant failure categories and detected
+extra/missing pitches. A completed run reports the percentage of playable steps
+with sustained matches, separately counts misses/skips, and excludes unplayable
+events. Count-ins, rests, pauses and held display readings are not scored; gaps
+between observations longer than 250 ms break the sustained-match timer. Results
+describe listener observations, with rhythm and tone grading explicitly excluded.
+The last completed report remains visible across restart/loop, while new runs get
+fresh counters. Changing arrangements clears the previous report, and simulated
+input is labeled in both live counts and saved-in-memory results.
+
+`takes.mjs` captures each real microphone practice take with browser MediaRecorder,
+negotiating a supported MIME type. Finalization waits for the final dataavailable
+and stop events; asynchronous callbacks own their take so overlapping finalization
+and a new loop cannot mix recordings. Each take also retains every raw pitch frame
+with elapsed recording time, target, step and count-in/play/rest phase, independently
+of the rolling six-second live history. Pauses, early finish, restart, mode/speed
+changes, device stop and hidden tabs finalize partial takes; continuing starts a new
+take. Simulated input never creates a microphone recording.
+
+`review.mjs` provides local audio playback/download, full-take note comparison,
+scrubbing, step jumps and notes JSON export. When available, OfflineAudioContext decodes the complete take
+to PCM WAV with explicit sample rate/data length for seeking; conversion failure
+retains the native recording and displays a fallback notice. This uses the recorded
+samples and performs no synthesis. See the browser
+[audio decoding API](https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/decodeAudioData).
+The same recording clock drives the comparison cursor; gaps in analysis do not
+fabricate held notes. Browser encoding
+and input latency are not calibrated for fine rhythm assessment. Recordings remain
+in memory across loops and arrangement changes until deleted or the tab reloads;
+download is the explicit persistence mechanism. Unsupported/failed recording is
+labeled, with measured note history still reviewable. Blob media playback is allowed
+by CSP while the server remains read-only and has no audio upload route. See the
+[MediaRecorder API](https://developer.mozilla.org/en-US/docs/Web/API/MediaRecorder).
+The UI offers a clearly labeled simulated-input demo and a downloadable guide.
+No audio extras, Node runtime or internet connection are needed to run the app;
+Node is used only for detector, progression and UI-controller tests.
 
 ## Open questions
 
